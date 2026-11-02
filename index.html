@@ -301,6 +301,7 @@
         window.getGameState = () => {
             return {
                 currentFloor, maxFloor, permCurses, eventState,
+                segmentChestBonus, segmentMimicBonus, bossRewardsClaimedFloors,
                 chestsData, totalOpened, totalTrueChests, isGameOver, isFloorCleared,
                 currentTempCurses, tempBuffs, currentEventLogs, isRandomMode, isLuckEvent,
                 restVisitedForCurrentFloor
@@ -312,6 +313,15 @@
             maxFloor = Math.max(1, Number(data.maxFloor) || 1);
             permCurses = data.permCurses || { random: false, sleepLevel: 0, addChests: 0, addMimics: 0 };
             eventState = data.eventState || { initialChance: 15, chance: 15, triggerCount: 0, missCount: 0 };
+            const completedBossesForMigration = Math.floor((currentFloor - 1) / 4) +
+                ((currentFloor % 4 === 0 && data.isFloorCleared) ? 1 : 0);
+            segmentChestBonus = Number.isFinite(Number(data.segmentChestBonus))
+                ? Math.max(0, Number(data.segmentChestBonus)) : completedBossesForMigration;
+            segmentMimicBonus = Number.isFinite(Number(data.segmentMimicBonus))
+                ? Math.max(0, Number(data.segmentMimicBonus)) : Math.max(0, completedBossesForMigration - 1);
+            bossRewardsClaimedFloors = Array.isArray(data.bossRewardsClaimedFloors)
+                ? data.bossRewardsClaimedFloors
+                : Array.from({ length: completedBossesForMigration }, (_, i) => (i + 1) * 4);
             localStorage.setItem('mimicMaxFloor', maxFloor);
             
             const savedChests = data.chestsData || [];
@@ -371,6 +381,10 @@
 
         let baseChests = 4;
         let baseMimics = 1;
+        // 구간 기본 상자 수: 각 4층 구간의 1~4층은 4, 5, 6, 6개.
+        let segmentChestBonus = 0;
+        let segmentMimicBonus = 0;
+        let bossRewardsClaimedFloors = [];
 
         let permCurses = {
             random: false,
@@ -452,6 +466,9 @@
             currentFloor = 1;
             baseChests = 4;
             baseMimics = 1;
+            segmentChestBonus = 0;
+            segmentMimicBonus = 0;
+            bossRewardsClaimedFloors = [];
             permCurses = { random: false, sleepLevel: 0, addChests: 0, addMimics: 0 };
             eventState = { initialChance: 15, chance: 15, triggerCount: 0, missCount: 0 };
             restVisitedForCurrentFloor = false;
@@ -622,14 +639,16 @@
                 }
             }
             
-            let calcChests = baseChests + Math.floor((currentFloor - 1) / 10) + permCurses.addChests + (currentTempCurses.addChests || 0);
-            let calcMimics = baseMimics + Math.floor((currentFloor - 1) / 20) + permCurses.addMimics + (currentTempCurses.addMimics || 0);
+            const segmentBaseChestCounts = [4, 5, 6, 6];
+            let calcChests = segmentBaseChestCounts[(currentFloor - 1) % 4] +
+                segmentChestBonus + permCurses.addChests + (currentTempCurses.addChests || 0);
+            let calcMimics = baseMimics + Math.floor((currentFloor - 1) / 20) +
+                segmentMimicBonus + permCurses.addMimics + (currentTempCurses.addMimics || 0);
             
             let isRandom = (permCurses.random || currentTempCurses.random || isBoss) && !tempBuffs.preventRandom;
             
             if (isBoss) {
-                calcChests += 1;
-                currentEventLogs.push("💀 [보스 층] 상자 수 증가, 수면 확정, 미믹 랜덤화, 연관성 감소!");
+                currentEventLogs.push("💀 [구간 보스] 수면 확정, 미믹 랜덤화, 연관성 감소!");
             }
             
             if (isLuckEvent) {
@@ -1296,12 +1315,15 @@
                 if (!chestsData.length) return;
                 isGameOver = true;
                 isFloorCleared = true;
+                const bossReward = awardSegmentBossRewards();
                 totalOpened = totalTrueChests;
                 chestsData.forEach(chest => {
                     chest.isSleeping = false;
                     if (chest.role === 'T') chest.isOpen = true;
                 });
-                statusMsg.innerText = '[디버그] 미믹을 제외한 모든 상자를 개방했습니다.';
+                statusMsg.innerText = bossReward
+                    ? `[디버그] 층 클리어. ${bossReward} 보상을 획득했습니다.`
+                    : '[디버그] 미믹을 제외한 모든 상자를 개방했습니다.';
                 statusMsg.className = 'text-center text-lg font-bold mb-4 h-7 text-emerald-700 drop-shadow-sm';
                 btnNextFloor.classList.remove('hidden');
                 btnRestart.classList.add('hidden');
@@ -1357,11 +1379,28 @@
             renderChests(); if (window.autoSaveToCloud) window.autoSaveToCloud();
         }
 
+        function awardSegmentBossRewards() {
+            if (currentFloor % 4 !== 0 || bossRewardsClaimedFloors.includes(currentFloor)) return;
+            const bossNumber = Math.floor(currentFloor / 4);
+            segmentChestBonus += 1;
+            let rewardText = "구간 영구 상자 +1";
+            if (bossNumber >= 2) {
+                segmentMimicBonus += 1;
+                rewardText += " / 구간 영구 미믹 +1";
+            }
+            bossRewardsClaimedFloors.push(currentFloor);
+            currentEventLogs.push(`🏆 [구간 보스 보상] ${rewardText}`);
+            return rewardText;
+        }
+
         function gameOver(isWin) {
             isGameOver = true;
             if (isWin) {
                 isFloorCleared = true;
-                statusMsg.innerText = "층 클리어! 모든 진짜 보물을 찾아냈습니다! 🎉";
+                const bossReward = awardSegmentBossRewards();
+                statusMsg.innerText = bossReward
+                    ? `층 클리어! ${bossReward} 보상을 획득했습니다.`
+                    : "층 클리어! 모든 진짜 보물을 찾아냈습니다! 🎉";
                 statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-indigo-600 drop-shadow-sm scale-105 transition-transform";
                 btnNextFloor.classList.remove('hidden'); btnRestart.classList.add('hidden');
             } else {
