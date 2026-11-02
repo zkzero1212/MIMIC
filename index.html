@@ -137,7 +137,7 @@
         <!-- Header -->
         <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
-                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v0.2</span>
+                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v0.3</span>
             </h1>
             <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
@@ -739,6 +739,7 @@
                 chestsData = [];
                 for (let i = 0; i < calcChests; i++) {
                     chestsData.push({
+                        gridLayout: puzzle.layout,
                         role: puzzle.roles[i],
                         originalStatement: puzzle.statements[i].text,
                         statement: puzzle.statements[i].text,
@@ -778,21 +779,27 @@
 
         // --- Generation Engine (Preserved logic with weight adjustments) ---
         function getGridLayout(n) {
-            // 각 상자의 좌표를 직접 지정해 행마다 열이 정확히 맞도록 배치합니다.
+            // 벌집형은 행 사이에 공백 셀이 있어도 실제 상자 사이의 이웃 관계를 유지합니다.
             const layouts = {
-                3: [[0, 0], [1, 0], [1, 1]],
-                4: [[0, 0], [0, 1], [1, 0], [1, 1]],
-                5: [[0, 0], [0, 2], [1, 1], [2, 0], [2, 1]],
-                6: [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]],
-                7: [[0, 1], [0, 3], [1, 0], [1, 2], [1, 4], [2, 1], [2, 3]],
-                8: [[0, 0], [0, 1], [0, 2], [0, 3], [1, 0], [1, 1], [1, 2], [1, 3]],
-                9: [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 1], [2, 2]]
+                3: { honeycomb: false, pos: [[0, 0], [1, 0], [1, 1]] },
+                4: { honeycomb: false, pos: [[0, 0], [0, 1], [1, 0], [1, 1]] },
+                5: { honeycomb: true, pos: [[0, 0], [0, 2], [1, 1], [2, 0], [2, 1]] },
+                6: Math.random() < 0.5
+                    ? { honeycomb: false, pos: [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]] }
+                    : { honeycomb: false, pos: [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1]] },
+                7: { honeycomb: true, pos: [[0, 1], [0, 3], [1, 0], [1, 2], [1, 4], [2, 1], [2, 3]] },
+                8: Math.random() < 0.5
+                    ? { honeycomb: false, pos: [[0, 0], [0, 1], [0, 2], [0, 3], [1, 0], [1, 1], [1, 2], [1, 3]] }
+                    : { honeycomb: true, pos: [[0, 0], [0, 2], [0, 4], [1, 1], [1, 3], [2, 0], [2, 2], [2, 4]] },
+                9: { honeycomb: false, pos: [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 1], [2, 2]] }
             };
-            const pos = layouts[Math.min(9, Math.max(1, n))] || layouts[9];
+            let selected = layouts[Math.min(9, Math.max(1, n))];
+            if (!selected) selected = layouts[9];
+            const pos = selected.pos.map(([r, c]) => [r, c]);
             const rows = Math.max(...pos.map(([row]) => row)) + 1;
             const cols = Math.max(...pos.map(([, col]) => col)) + 1;
             const rowCounts = Array.from({ length: rows }, (_, row) => pos.filter(([r]) => r === row).length);
-            return { cols, rows, rowCounts, pos: pos.map(([r, c]) => [r, c]) };
+            return { cols, rows, rowCounts, pos, honeycomb: selected.honeycomb };
         }
 
         function generateRoles(n, m) {
@@ -815,22 +822,51 @@
             return { colName: String.fromCharCode(65 + col), rowName: (row + 1).toString(), name: `${String.fromCharCode(65 + col)}${row + 1}` };
         }
 
-        // Odd-row offset hex coordinates: each chest has up to six real neighbors.
-        function getHexNeighbors(layout, index) {
+        // 공백 셀은 건너뜁니다. 벌집형의 같은 행에서는 실제 상자 기준 좌우 이웃을 찾습니다.
+        function getAdjacentNeighbors(layout, index) {
             const [row, col] = layout.pos[index];
-            // A1-B2처럼 화면에서 대각선으로 맞닿는 상자도 서로 이웃으로 계산합니다.
-            const offsets = row % 2 === 0
-                ? [[0, -1], [0, 1], [-1, 0], [-1, 1], [1, 0], [1, 1]]
-                : [[0, -1], [0, 1], [-1, -1], [-1, 0], [1, -1], [1, 0]];
-            const byCoord = new Map(layout.pos.map(([r, c], i) => [`${r},${c}`, i]));
-            return offsets.map(([dr, dc]) => byCoord.get(`${row + dr},${col + dc}`))
-                .filter(i => i !== undefined);
+            const result = [];
+            if (layout.honeycomb) {
+                const sameRow = layout.pos.map(([r, c], i) => ({ r, c, i }))
+                    .filter(p => p.r === row && p.i !== index)
+                    .sort((a, b) => a.c - b.c);
+                const left = sameRow.filter(p => p.c < col).pop();
+                const right = sameRow.find(p => p.c > col);
+                if (left) result.push(left.i);
+                if (right) result.push(right.i);
+                // 벌집형에서 같은 열의 상하는 십자 방향에 해당합니다.
+                layout.pos.forEach(([r, c], i) => {
+                    if (i !== index && c === col && Math.abs(r - row) === 1) result.push(i);
+                });
+            } else {
+                layout.pos.forEach(([r, c], i) => {
+                    if (i !== index && ((r === row && Math.abs(c - col) === 1) ||
+                        (c === col && Math.abs(r - row) === 1))) result.push(i);
+                });
+            }
+            return [...new Set(result)];
+        }
+
+        function getDiagonalNeighbors(layout, index) {
+            const [row, col] = layout.pos[index];
+            return layout.pos.map(([r, c], i) => ({ r, c, i }))
+                .filter(p => p.i !== index && Math.abs(p.r - row) === 1 &&
+                    (layout.honeycomb ? Math.abs(p.c - col) === 1 : Math.abs(p.c - col) === 1))
+                .map(p => p.i);
+        }
+
+        // 내 주위는 인접 + 대각선에 실제로 존재하는 상자만 포함합니다.
+        function getHexNeighbors(layout, index) {
+            return [...new Set([
+                ...getAdjacentNeighbors(layout, index),
+                ...getDiagonalNeighbors(layout, index)
+            ])];
         }
 
         function checkAdjacency(combo, layout) {
             for (let i = 0; i < combo.length; i++) {
                 if (combo[i] !== 'M') continue;
-                if (getHexNeighbors(layout, i).some(j => combo[j] === 'M')) return true;
+                if (getAdjacentNeighbors(layout, i).some(j => combo[j] === 'M')) return true;
             }
             return false;
         }
@@ -1200,7 +1236,7 @@
                     if (testStatementsCombination(selectedStatements, combo, actualColors, layout, treasurePlan)) validCount++;
                     if (validCount > 1) break;
                 }
-                if (validCount === 1) return { roles: actualRoles, statements: selectedStatements, colors: actualColors, treasures: actualTreasures };
+                if (validCount === 1) return { roles: actualRoles, statements: selectedStatements, colors: actualColors, treasures: actualTreasures, layout: { cols: layout.cols, rows: layout.rows, rowCounts: layout.rowCounts, pos: layout.pos, honeycomb: layout.honeycomb } };
             }
             return null;
         }
@@ -1252,7 +1288,7 @@
             rowsWrapper.className = "flex flex-col gap-4 items-center w-max min-w-full";
             horizontalScroller.appendChild(rowsWrapper);
             targetContainer.appendChild(horizontalScroller);
-            const numChests = boardData.length; const layout = getGridLayout(numChests); const rows = layout.rows;
+            const numChests = boardData.length; const layout = boardData[0]?.gridLayout || getGridLayout(numChests); const rows = layout.rows;
             const rowGroups = Array.from({length: rows}, () => []); layout.pos.forEach(([r, c], idx) => { rowGroups[r].push(idx); });
 
             for (let r = 0; r < rows; r++) {
