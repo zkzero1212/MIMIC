@@ -137,7 +137,7 @@
         <!-- Header -->
         <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
-                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v0.7</span>
+                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v0.8</span>
             </h1>
             <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
@@ -1037,8 +1037,11 @@
                 if (presentColors.length > 1) {
                     let maxM = Math.max(...presentColors.map(col => colorCounts[col].M));
                     let minM = Math.min(...presentColors.map(col => colorCounts[col].M));
-                    addStmt(mM === maxM, 'COLOR_EXTREME', `미믹이 가장 많은 색상은 ${shortColorNames[c]}색이야.`, { color: c, isMax: true }, 3, t);
-                    addStmt(mM === minM, 'COLOR_EXTREME', `미믹이 가장 적은 색상은 ${shortColorNames[c]}색이야.`, { color: c, isMax: false }, 3, t);
+                    const maxColorCount = presentColors.filter(col => colorCounts[col].M === maxM).length;
+                    const minColorCount = presentColors.filter(col => colorCounts[col].M === minM).length;
+                    // 최다/최소 색상은 공동 1위·공동 꼴찌를 허용하지 않습니다.
+                    addStmt(mM === maxM && maxColorCount === 1, 'COLOR_EXTREME', `미믹이 가장 많은 색상은 ${shortColorNames[c]}색이야.`, { color: c, isMax: true }, 3, t);
+                    addStmt(mM === minM && minColorCount === 1, 'COLOR_EXTREME', `미믹이 가장 적은 색상은 ${shortColorNames[c]}색이야.`, { color: c, isMax: false }, 3, t);
                 }
             }
 
@@ -1155,7 +1158,14 @@
                     case 'COLOR_PARITY': isTrue = (colorCounts[stmt.color].M % 2 === stmt.parity); break;
                     case 'COLOR_CMP': isTrue = evaluateOp(colorCounts[stmt.c1].M, stmt.op, colorCounts[stmt.c2].M); break;
                     case 'NOT_COLOR_M': let notColorM = combo.filter((role, idx) => role === 'M' && chestColors[idx] !== stmt.color).length; isTrue = stmt.hasMimic ? (notColorM > 0) : (notColorM === 0); break;
-                    case 'COLOR_EXTREME': let allM = presentColors.map(col => colorCounts[col].M); let extremeVal = stmt.isMax ? Math.max(...allM) : Math.min(...allM); isTrue = (colorCounts[stmt.color].M === extremeVal); break;
+                    case 'COLOR_EXTREME': {
+                        const allM = presentColors.map(col => colorCounts[col].M);
+                        const extremeVal = stmt.isMax ? Math.max(...allM) : Math.min(...allM);
+                        const extremeCount = allM.filter(count => count === extremeVal).length;
+                        // 최댓값/최솟값이 공동이면 해당 색상을 극값으로 인정하지 않습니다.
+                        isTrue = extremeCount === 1 && colorCounts[stmt.color].M === extremeVal;
+                        break;
+                    }
                     case 'GROUP_M_EXIST': let gmCount = stmt.group.filter(idx => combo[idx] === 'M').length; isTrue = stmt.hasMimic ? (gmCount > 0) : (gmCount === 0); break;
                     case 'ITEM_GROUP_EXIST': const itemCount = stmt.group.filter(idx => candidateTreasures[idx] === stmt.item).length; isTrue = stmt.hasItem ? itemCount > 0 : itemCount === 0; break;
                     case 'ROW_CMP': let r1M = 0; let r2M = 0; layout.pos.forEach(([r, c], idx) => { if(r === stmt.r1 && combo[idx]==='M') r1M++; if(r === stmt.r2 && combo[idx]==='M') r2M++; }); isTrue = evaluateOp(r1M, stmt.op, r2M); break;
