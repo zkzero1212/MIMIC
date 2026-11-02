@@ -802,7 +802,6 @@
                 let maxMimics = Math.max(1, Math.floor((num - 1) / 2));
                 addCountStmts(totalM, maxMimics, 'GLOBAL_M_COUNT', '이 맵 전체에는', {}, 12, ['global_count']);
                 addStmt(totalM === 0, 'GLOBAL_M_EXIST', '이 맵 전체에는 미믹이 없어.', { hasMimic: false }, 1.2, []);
-                addStmt(totalM !== 0, 'GLOBAL_M_EXIST', '이 맵 전체에는 미믹이 없어.', { hasMimic: false }, 1.2, []);
                 addStmt(totalM > 0, 'GLOBAL_M_EXIST', '이 맵 전체에는 미믹이 있어.', { hasMimic: true }, 1.2, []);
                 addStmt(totalM === 0, 'GLOBAL_M_EXIST', '이 맵 전체에는 미믹이 있어.', { hasMimic: true }, 1.2, []);
                 const isEven = (totalM % 2 === 0);
