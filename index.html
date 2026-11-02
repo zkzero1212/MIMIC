@@ -1140,27 +1140,13 @@
             container.innerHTML = '';
             const numChests = chestsData.length; const layout = getGridLayout(numChests); const rows = layout.rows;
             const rowGroups = Array.from({length: rows}, () => []); layout.pos.forEach(([r, c], idx) => { rowGroups[r].push(idx); });
-            container.style.overflowX = 'auto';
-            container.style.maxWidth = '100%';
 
             for (let r = 0; r < rows; r++) {
                 if (rowGroups[r].length === 0) continue;
-                const rowContainer = document.createElement('div');
-                rowContainer.className = "flex justify-center items-start gap-3 md:gap-5 w-max flex-nowrap shrink-0";
-                rowContainer.style.flexShrink = '0';
-                if (r % 2 === 1) rowContainer.classList.add('translate-x-[3.875rem]', 'md:translate-x-[5.125rem]');
+                const rowContainer = document.createElement('div'); rowContainer.className = "flex justify-center items-start gap-3 md:gap-5 w-full flex-wrap";
                 rowGroups[r].sort((a, b) => layout.pos[a][1] - layout.pos[b][1]);
-                const indexByCol = new Map(rowGroups[r].map(idx => [layout.pos[idx][1], idx]));
 
-                // Keep empty grid cells so the rendered odd-row hex layout matches getHexNeighbors().
-                for (let col = 0; col < layout.cols; col++) {
-                    const idx = indexByCol.get(col);
-                    if (idx === undefined) {
-                        const spacer = document.createElement('div');
-                        spacer.className = "w-28 md:w-36 shrink-0";
-                        rowContainer.appendChild(spacer);
-                        continue;
-                    }
+                for (let idx of rowGroups[r]) {
                     const chest = chestsData[idx];
                     const chestWrap = document.createElement('div'); chestWrap.className = `flex flex-col items-center w-28 md:w-36 relative mt-1`;
                     chestWrap.onmouseenter = () => { hoveredChestIdx = idx; }; chestWrap.onmouseleave = () => { if (hoveredChestIdx === idx) hoveredChestIdx = null; };
