@@ -308,6 +308,7 @@
         window.getGameState = () => {
             return {
                 currentFloor, maxFloor, permCurses, eventState,
+                bossRewardRulesVersion: 2,
                 segmentChestBonus, segmentMimicBonus, bossRewardsClaimedFloors,
                 chestsData, totalOpened, totalTrueChests, isGameOver, isFloorCleared,
                 currentTempCurses, tempBuffs, currentEventLogs, isRandomMode, isLuckEvent,
@@ -320,15 +321,25 @@
             maxFloor = Math.max(1, Number(data.maxFloor) || 1);
             permCurses = data.permCurses || { random: false, sleepLevel: 0, addChests: 0, addMimics: 0 };
             eventState = data.eventState || { initialChance: 15, chance: 15, triggerCount: 0, missCount: 0 };
-            const completedBossesForMigration = Math.floor((currentFloor - 1) / 4) +
-                ((currentFloor % 4 === 0 && data.isFloorCleared) ? 1 : 0);
-            segmentChestBonus = Number.isFinite(Number(data.segmentChestBonus))
-                ? Math.max(0, Number(data.segmentChestBonus)) : completedBossesForMigration;
-            segmentMimicBonus = Number.isFinite(Number(data.segmentMimicBonus))
-                ? Math.max(0, Number(data.segmentMimicBonus)) : Math.max(0, completedBossesForMigration - 1);
-            bossRewardsClaimedFloors = Array.isArray(data.bossRewardsClaimedFloors)
-                ? data.bossRewardsClaimedFloors
-                : Array.from({ length: completedBossesForMigration }, (_, i) => (i + 1) * 4);
+            let completedBossesForMigration = 0;
+            for (let bossFloor = 4; bossFloor <= currentFloor; bossFloor += 5) {
+                if (bossFloor < currentFloor || (bossFloor === currentFloor && data.isFloorCleared)) {
+                    completedBossesForMigration++;
+                }
+            }
+            if (data.bossRewardRulesVersion === 2) {
+                segmentChestBonus = Math.max(0, Number(data.segmentChestBonus) || 0);
+                segmentMimicBonus = Math.max(0, Number(data.segmentMimicBonus) || 0);
+                bossRewardsClaimedFloors = Array.isArray(data.bossRewardsClaimedFloors)
+                    ? data.bossRewardsClaimedFloors : [];
+            } else {
+                // 구버전 보상은 새 규칙에 맞춰 재계산: 첫 보스는 미믹만, 이후 보스는 미믹+상자.
+                segmentMimicBonus = completedBossesForMigration;
+                segmentChestBonus = Math.max(0, completedBossesForMigration - 1);
+                bossRewardsClaimedFloors = Array.from(
+                    { length: completedBossesForMigration }, (_, i) => 4 + i * 5
+                );
+            }
             localStorage.setItem('mimicMaxFloor', maxFloor);
             
             const savedChests = data.chestsData || [];
@@ -354,7 +365,7 @@
                 let calcChests = chestsData.length;
                 let calcMimics = chestsData.filter(c => c.role === 'M').length;
                 let sleepCount = chestsData.filter(c => c.isSleeping).length;
-                let isBoss = currentFloor % 4 === 0;
+                let isBoss = isBossFloor(currentFloor);
                 
                 let currentTreasuresSummary = {};
                 chestsData.forEach((c) => {
@@ -388,6 +399,13 @@
 
         let baseChests = 4;
         let baseMimics = 1;
+        function isBossFloor(floor) {
+            return floor >= 4 && (floor - 4) % 5 === 0;
+        }
+        function getNextBossFloor(floor) {
+            if (floor < 4) return 4;
+            return 4 + (Math.floor((floor - 4) / 5) + 1) * 5;
+        }
         // 구간 기본 상자 수: 각 4층 구간의 1~4층은 4, 5, 6, 6개.
         let segmentChestBonus = 0;
         let segmentMimicBonus = 0;
@@ -544,8 +562,9 @@
             let nextRest = 5 - (currentFloor % 5);
             document.getElementById('ui-next-rest').innerText = nextRest === 5 ? "현재 층" : `${nextRest}층 남음`;
             
-            let nextBoss = 4 - (currentFloor % 4);
-            document.getElementById('ui-next-boss').innerText = nextBoss === 4 ? "현재 층" : `${nextBoss}층 남음`;
+            const nextBossFloor = isBossFloor(currentFloor) ? currentFloor : getNextBossFloor(currentFloor);
+            const nextBoss = nextBossFloor - currentFloor;
+            document.getElementById('ui-next-boss').innerText = nextBoss === 0 ? "현재 층" : `${nextBoss}층 남음`;
             
             document.getElementById('info-total-chests').innerText = `${calcChests}개`;
             document.getElementById('info-mimics').innerText = isRandom ? '? 마리' : `${calcMimics}마리`;
@@ -624,7 +643,7 @@
             }
             restVisitedForCurrentFloor = false; 
             
-            let isBoss = currentFloor % 4 === 0;
+            let isBoss = isBossFloor(currentFloor);
             
             if (currentFloor >= 6 && !isBoss) {
                 if (Math.random() < 0.01) {
@@ -648,8 +667,8 @@
                 }
             }
             
-            const segmentBaseChestCounts = [4, 5, 6, 6];
-            let calcChests = segmentBaseChestCounts[(currentFloor - 1) % 4] +
+            const baseChestCount = currentFloor <= 3 ? [4, 5, 6][currentFloor - 1] : 6;
+            let calcChests = baseChestCount +
                 segmentChestBonus + permCurses.addChests + (currentTempCurses.addChests || 0);
             let calcMimics = baseMimics + Math.floor((currentFloor - 1) / 20) +
                 segmentMimicBonus + permCurses.addMimics + (currentTempCurses.addMimics || 0);
@@ -1395,16 +1414,15 @@
         }
 
         function awardSegmentBossRewards() {
-            if (currentFloor % 4 !== 0 || bossRewardsClaimedFloors.includes(currentFloor)) return;
-            const bossNumber = Math.floor(currentFloor / 4);
-            segmentChestBonus += 1;
-            let rewardText = "구간 영구 상자 +1";
-            if (bossNumber >= 2) {
-                segmentMimicBonus += 1;
-                rewardText += " / 구간 영구 미믹 +1";
+            if (!isBossFloor(currentFloor) || bossRewardsClaimedFloors.includes(currentFloor)) return;
+            segmentMimicBonus += 1;
+            let rewardText = "보스 전용 영구 미믹 +1";
+            if (currentFloor >= 9) {
+                segmentChestBonus += 1;
+                rewardText += " / 보스 전용 영구 상자 +1";
             }
             bossRewardsClaimedFloors.push(currentFloor);
-            currentEventLogs.push(`🏆 [구간 보스 보상] ${rewardText}`);
+            currentEventLogs.push(`🏆 [보스 보상] ${rewardText}`);
             return rewardText;
         }
 
