@@ -137,7 +137,7 @@
         <!-- Header -->
         <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
-                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v0.6</span>
+                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v0.7</span>
             </h1>
             <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
@@ -1316,7 +1316,7 @@
                 const isWideScreen = window.matchMedia('(min-width: 768px)').matches;
                 // 사각형은 상자 간 여백을 넉넉히 두고, 벌집형은 2개 트랙을 한 상자 폭으로 묶어
                 // 공백 셀이 과도하게 벌어져 보이지 않도록 실제 상자 중심 간격을 맞춥니다.
-                const gridTrack = layout.honeycomb ? (isWideScreen ? 5.25 : 4.75) : (isWideScreen ? 10 : 9.5);
+                const gridTrack = layout.honeycomb ? (isWideScreen ? 4.625 : 4.375) : (isWideScreen ? 10 : 9.5);
                 rowContainer.style.gridTemplateColumns = `repeat(${layout.honeycomb ? layout.cols * 2 : layout.cols}, ${gridTrack}rem)`;
                 rowContainer.style.columnGap = '0px';
                 rowContainer.style.flexShrink = "0";
