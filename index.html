@@ -199,6 +199,13 @@
                     <span class="text-[11px] font-bold text-slate-700 block mb-1">활성화된 영구 저주</span>
                     <div id="ui-perm-curses" class="flex flex-wrap gap-1"></div>
                 </div>
+                <div class="border-t border-slate-200 pt-2 mt-1">
+                    <span class="text-[11px] font-bold text-slate-700 block mb-1">누적 구간 보스 보상</span>
+                    <div class="flex flex-wrap gap-1 text-[10px] font-extrabold">
+                        <span class="rounded bg-emerald-100 text-emerald-800 px-2 py-1">영구 상자 +<span id="ui-segment-chest-bonus">0</span></span>
+                        <span class="rounded bg-violet-100 text-violet-800 px-2 py-1">영구 미믹 +<span id="ui-segment-mimic-bonus">0</span></span>
+                    </div>
+                </div>
                 
                 
 
@@ -542,6 +549,8 @@
             
             document.getElementById('info-total-chests').innerText = `${calcChests}개`;
             document.getElementById('info-mimics').innerText = isRandom ? '? 마리' : `${calcMimics}마리`;
+            document.getElementById('ui-segment-chest-bonus').innerText = segmentChestBonus;
+            document.getElementById('ui-segment-mimic-bonus').innerText = segmentMimicBonus;
             document.getElementById('info-sleep').innerText = `${sleepCount}개`;
             
             document.getElementById('ui-event-chance').innerText = currentFloor >= 6 ? `${Math.floor(eventState.chance)}%` : `(6F부터)`;
