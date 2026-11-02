@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>미믹 로직 (Mimic Logic Web)</title>
-    <script type="text/javascript" nonce="2a5568c94f4342f29d9a45be9f4" src="//local.adguard.org?ts=1793606391415&amp;type=content-script&amp;dmn=chatgpt.com&amp;url=https%3A%2F%2Fchatgpt.com%2Fbackend-api%2Festuary%2Fcontent%3Fid%3Dfile_000000004ff4820bade5592a1f6aee0f%26fn%3Dmimic2_fixed_v2.html%26cd%3Dattachment%26ts%3D498224%26p%3Dfs%26cid%3D1%26sig%3D3efeb1925162865a1031a03c7affaa286d67f113180ae7c7ef2b97d374114b47%26v%3D0&amp;app=chrome.exe&amp;css=2&amp;js=1&amp;rel=1&amp;rji=1&amp;sbe=1&amp;stealth=1&amp;st-dnt"></script><script type="text/javascript" nonce="2a5568c94f4342f29d9a45be9f4" src="//local.adguard.org?ts=1793606391415&amp;name=AdGuard%20Extra&amp;name=AdGuard%20Popup%20Blocker&amp;type=user-script"></script><script src="https://cdn.tailwindcss.com"></script>
+    <title>미믹 로직: 로그라이크 등반</title>
+    <script type="text/javascript" nonce="2a5568c94f4342f29d9a45be9f4" src="//local.adguard.org?ts=1793617190928&amp;type=content-script&amp;dmn=contribution.usercontent.google.com&amp;url=https%3A%2F%2Fcontribution.usercontent.google.com%2Fdownload%3Fc%3DCgxiYXJkX3N0b3JhZ2USUBINcmVzcG9uc2VfZGF0YRo_CjA2MDZiNjI5MjA5ZWU2NjhlMDAwNjVmNDlkZTQwM2M2NzAxNTZhNjBiYmUxNjIxYTkSCxIHEJyQtOelHRgB%26filename%3Dmimic_roguelike_autosave_fix.html%26opi%3D103135050&amp;app=chrome.exe&amp;css=3&amp;js=1&amp;rel=1&amp;rji=1&amp;sbe=1&amp;stealth=1&amp;st-dnt"></script><script type="text/javascript" nonce="2a5568c94f4342f29d9a45be9f4" src="//local.adguard.org?ts=1793617190928&amp;name=AdGuard%20Extra&amp;type=user-script"></script><script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: 'Pretendard', 'Inter', sans-serif; background-color: #f1f5f9; color: #1e293b; }
+        body { font-family: 'Pretendard', 'Inter', sans-serif; background-color: #f8fafc; color: #1e293b; }
         .chest-bounce { animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         .mimic-shake { animation: shake 0.5s; }
         
@@ -21,7 +21,6 @@
             20%, 40%, 60%, 80% { transform: translateX(4px); }
         }
         
-        /* 툴팁 화살표 (화이트 테마) */
         .bubble-arrow::after {
             content: '';
             position: absolute;
@@ -44,234 +43,627 @@
             word-break: break-all;
         }
     </style>
+
+    <!-- Firebase Realtime Database SDK (No Auth Required) -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+      import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+      // 사용자의 Realtime Database 링크를 기반으로 한 설정
+      // 주소 뒤에 -default-rtdb 가 붙지 않는 구형/특정 리전 주소 규칙을 반영했습니다.
+      const firebaseConfig = {
+        databaseURL: "https://hwanhyang-b1d4e.firebaseio.com",
+        projectId: "hwanhyang-b1d4e"
+      };
+
+      // 무한 로딩 방지용 타임아웃 함수
+      const withTimeout = (promise, ms) => {
+          return Promise.race([
+              promise,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('서버 응답 지연 (데이터베이스 권한 규칙이나 링크를 다시 확인해주세요)')), ms))
+          ]);
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const db = getDatabase(app);
+
+      window.currentSaveSlot = 'Mimic1';
+
+      window.selectSlot = async (slotId) => {
+          window.currentSaveSlot = slotId;
+          // Update UI buttons
+          ['Mimic1', 'Mimic2', 'Mimic3'].forEach(id => {
+              const btn = document.getElementById('slot-' + id);
+              if (btn) {
+                  if(id === slotId) {
+                      btn.className = "flex-1 bg-indigo-600 text-white ring-2 ring-indigo-300 font-extrabold py-2 px-1 rounded text-[11px] shadow-sm transition-all";
+                  } else {
+                      btn.className = "flex-1 bg-white hover:bg-indigo-50 text-slate-600 border border-slate-300 font-extrabold py-2 px-1 rounded text-[11px] shadow-sm transition-all";
+                  }
+              }
+          });
+
+          const statusMsg = document.getElementById('status-message');
+          statusMsg.innerText = `☁️ [${slotId}] 슬롯 불러오는 중...`;
+          
+          try {
+              const dbRef = ref(db);
+              const snapshot = await withTimeout(get(child(dbRef, `saves/${slotId}`)), 4000);
+              if (snapshot.exists()) {
+                  const data = snapshot.val();
+                  window.loadGameState(data);
+                  statusMsg.innerText = `☁️ [${slotId}] 슬롯에서 진행 상황을 불러왔습니다!`;
+              } else {
+                  statusMsg.innerText = `☁️ [${slotId}] 빈 슬롯입니다. 새 등반을 시작합니다.`;
+                  statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-indigo-700 drop-shadow-sm";
+                  window.startClimb(); // Reset game for new slot
+              }
+          } catch(e) {
+               statusMsg.innerText = `불러오기 실패: ${e.message}`;
+               statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-red-600 drop-shadow-sm";
+          }
+      };
+
+      window.autoSaveToCloud = () => {
+          if (!window.currentSaveSlot) return;
+          const saveData = window.getGameState();
+          saveData.timestamp = new Date().toISOString();
+          
+          set(ref(db, 'saves/' + window.currentSaveSlot), saveData).then(() => {
+              const saveIndicator = document.getElementById('save-indicator');
+              if(saveIndicator) {
+                  saveIndicator.innerText = "💾 자동 저장됨";
+                  saveIndicator.classList.remove('opacity-0');
+                  setTimeout(() => saveIndicator.classList.add('opacity-0'), 2000);
+              }
+          }).catch(e => console.error("Auto-save failed", e));
+      };
+      
+      // 페이지 로드 시 초기 슬롯 로드 (startClimb 대신 window.onload에서 호출될 수 있도록 대기)
+      window.initialSlotLoad = () => {
+          window.selectSlot('Mimic1');
+      };
+</script>
+
 </head>
-<body class="min-h-screen flex flex-col items-center py-6 px-4">
+<body class="min-h-screen flex flex-col items-center py-6 px-4 relative">
 
     <div class="max-w-6xl w-full">
         <!-- Header -->
         <header class="text-center mb-6">
-            <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-yellow-600 mb-1 drop-shadow-sm">
-                미믹 로직 (Mimic Logic)
+            <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
+                미믹 로직: 등반 모드
             </h1>
-            <p class="text-slate-500 text-xs md:text-sm">진짜 보물상자(T)는 항상 <b>진실</b>을, 미믹(M)은 항상 <b>거짓</b>을 말합니다. 모든 진짜 보물을 찾아보세요!</p>
+            <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
 
-        <!-- Compact Collapsible Settings Panel -->
-        <div class="bg-white rounded-xl p-3 md:p-4 mb-6 shadow-md border border-slate-200 max-w-lg mx-auto">
-            <div class="flex justify-between items-center cursor-pointer select-none" id="settings-header">
-                <div class="flex items-center gap-2">
-                    <h2 class="text-sm font-bold text-slate-800">게임 설정</h2>
-                    <span id="settings-summary" class="text-xs text-slate-400">상자 7개, 미믹 1마리</span>
-                </div>
-                <button id="btn-toggle-settings" class="text-slate-500 hover:text-slate-800 font-bold text-sm px-2 py-0.5 transition-transform duration-200">
-                    ▼ 접기
-                </button>
-            </div>
-            
-            <div id="settings-content" class="mt-3 pt-3 border-t border-slate-100 transition-all">
-                <!-- Chests Count Row -->
-                <div class="mb-3">
-                    <div class="flex justify-between items-center mb-1">
-                        <label class="text-xs text-slate-600 font-medium">상자 개수</label>
-                        <div class="flex items-center gap-1.5">
-                            <button id="btn-chests-down" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-bold text-xs flex items-center justify-center">-</button>
-                            <span id="val-chests" class="text-xs font-bold text-amber-600 w-4 text-center">7</span>
-                            <button id="btn-chests-up" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-bold text-xs flex items-center justify-center">+</button>
-                        </div>
-                    </div>
-                    <input type="range" id="slider-chests" min="3" max="12" value="7" class="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-200 rounded-lg">
-                </div>
-
-                <!-- Mimics Count Row -->
-                <div class="mb-4">
-                    <div class="flex justify-between items-center mb-1">
-                        <label class="text-xs text-slate-600 font-medium">미믹 개수</label>
-                        <div class="flex items-center gap-2">
-                            <label class="text-[11px] text-slate-500 flex items-center gap-1 cursor-pointer select-none hover:text-slate-800">
-                                <input type="checkbox" id="chk-random" class="accent-red-500 w-3 h-3 rounded cursor-pointer">
-                                랜덤 모드 (?)
-                            </label>
-                            <div class="flex items-center gap-1.5" id="mimics-controls-wrap">
-                                <button id="btn-mimics-down" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-bold text-xs flex items-center justify-center">-</button>
-                                <span id="val-mimics" class="text-xs font-bold text-red-500 w-4 text-center">1</span>
-                                <button id="btn-mimics-up" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-bold text-xs flex items-center justify-center">+</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="text-[10px] text-amber-600 font-medium mb-1.5">랜덤미믹은 항상 총 상자개수의 절반미만</div>
-                    <input type="range" id="slider-mimics" min="1" max="3" value="1" class="w-full accent-red-500 cursor-pointer h-1.5 bg-slate-200 rounded-lg transition-opacity">
-                </div>
-
-                <!-- Treasure Items Config -->
-                <div class="mb-4">
-                    <div class="flex justify-between items-center mb-1">
-                        <label class="text-xs text-slate-600 font-medium">상자 보물 품목 설정 (쉼표로 구분)</label>
-                        <span class="text-[10px] text-slate-400">최소 1가지 이상 · 비우면 보물</span>
-                    </div>
-                    <input type="text" id="input-treasures" value="골드, 아이템, 장비" class="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-amber-500">
-                </div>
-            </div>
-
-            <!-- Start Button (Always accessible) -->
-            <button id="btn-start" class="w-full mt-2 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-all text-sm active:scale-95">
-                새 게임 시작
-            </button>
-        </div>
-
         <!-- Status Message -->
-        <div id="status-message" class="text-center text-lg font-bold mb-4 h-7 text-amber-700 drop-shadow-sm">
-            설정을 맞추고 게임을 시작하세요.
+        <div id="status-message" class="text-center text-lg font-bold mb-4 h-7 text-indigo-700 drop-shadow-sm">
+            탑 입구에 도달했습니다. 잠시 후 등반을 시작합니다...
         </div>
         
         <!-- Generating Warning -->
-        <div id="gen-warning" class="invisible h-7 text-center text-xs text-amber-600 mb-3 animate-pulse">
-            논리적으로 유일한 정답을 가진 퍼즐을 생성 중입니다...
+        <div id="gen-warning" class="invisible h-7 text-center text-xs text-amber-600 mb-3 animate-pulse font-bold">
+            맵을 생성 중입니다...
         </div>
 
-        <!-- Main Layout: Left Info Panel + Center Chests Grid + Right Control Panel -->
+        <!-- Main Layout -->
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 items-start w-full">
             
-            <!-- Left Info Panel (Vertical Total Chests Layout) -->
-            <div id="left-info-panel" class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 lg:col-span-1 flex flex-col gap-3">
-                <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-1.5 flex items-center justify-between">
-                    <span>게임 정보</span>
-                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+            <!-- Left Info Panel (Climbing Stats) -->
+            <div id="left-info-panel" class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 lg:col-span-1 flex flex-col gap-3 transition-colors duration-300">
+                <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center justify-between">
+                    <span>등반 정보</span>
+                    <span class="text-xs font-extrabold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded shadow-sm">최고: <span id="ui-max-floor">1</span>F</span>
                 </h3>
-                <div class="flex flex-col gap-2 text-xs text-slate-600">
-                    <div class="flex flex-col items-center justify-center bg-slate-50 p-3 rounded-lg gap-1 border border-slate-100">
-                        <span class="font-bold text-slate-500 text-xs">총 상자 수</span>
-                        <span id="info-total-chests" class="font-extrabold text-slate-800 text-lg">7개</span>
+                
+                <div class="flex items-center justify-center bg-indigo-50 p-3 rounded-lg border border-indigo-100 shadow-inner">
+                    <span class="font-bold text-indigo-700 text-lg mr-2">현재 층:</span>
+                    <span id="ui-floor" class="font-extrabold text-indigo-900 text-3xl drop-shadow-sm">1F</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div class="bg-slate-50 p-2 rounded flex flex-col items-center border border-slate-100">
+                        <span class="text-slate-500 font-bold mb-1">상자 수</span>
+                        <span id="info-total-chests" class="font-extrabold text-slate-800 text-sm">4개</span>
                     </div>
-                    <div class="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
-                        <span class="font-bold text-slate-500">미믹 수</span>
-                        <span id="info-mimics" class="font-bold text-red-600 text-sm">1마리</span>
+                    <div class="bg-slate-50 p-2 rounded flex flex-col items-center border border-slate-100">
+                        <span class="text-slate-500 font-bold mb-1">미믹 수</span>
+                        <span id="info-mimics" class="font-extrabold text-red-600 text-sm">1마리</span>
+                    </div>
+                    <div class="bg-slate-50 p-2 rounded flex flex-col items-center border border-slate-100">
+                        <span class="text-slate-500 font-bold mb-1 tracking-tighter">잠자는 상자</span>
+                        <span id="info-sleep" class="font-extrabold text-purple-600 text-sm">0개</span>
+                    </div>
+                    <div class="bg-slate-50 p-2 rounded flex flex-col items-center border border-slate-100">
+                        <span class="text-slate-500 font-bold mb-1 tracking-tighter">이벤트 확률</span>
+                        <span id="ui-event-chance" class="font-extrabold text-amber-600 text-sm">0%</span>
                     </div>
                 </div>
-                <div class="border-t border-slate-100 pt-2">
-                    <span class="text-[11px] font-bold text-slate-700 block mb-1.5">진짜 상자 보물 구성</span>
-                    <div id="info-treasures-list" class="flex flex-col gap-1.5 text-xs">
-                        <!-- Dynamically filled -->
+                
+                <div class="flex flex-col gap-1 text-[11px] text-slate-600 font-medium bg-slate-50 p-2 rounded border border-slate-100">
+                    <div class="flex justify-between items-center">
+                        <span>다음 휴식처:</span><span id="ui-next-rest" class="font-bold text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded">4층 남음</span>
+                    </div>
+                    <div class="flex justify-between items-center mt-1">
+                        <span>다음 보스:</span><span id="ui-next-boss" class="font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded">3층 남음</span>
                     </div>
                 </div>
+
+                <div class="border-t border-slate-200 pt-2 mt-1">
+                    <span class="text-[11px] font-bold text-slate-700 block mb-1">활성화된 영구 저주</span>
+                    <div id="ui-perm-curses" class="flex flex-wrap gap-1"></div>
+                </div>
+                
+                
+
+                <div id="ui-event-logs" class="flex flex-col gap-1 mt-1"></div>
             </div>
 
             <!-- Center Chests Grid Area -->
             <div class="lg:col-span-2 flex flex-col items-center w-full">
+                <!-- 가로형 구성품 리스트 -->
+                <div id="info-treasures-list" class="flex flex-wrap justify-center items-center gap-2 md:gap-4 mb-4 bg-white px-4 py-2.5 rounded-xl shadow-sm border border-slate-200 w-full max-w-2xl min-h-[48px]">
+                </div>
                 <div id="chests-container" class="flex flex-col gap-4 items-center mx-auto mb-6 w-full transition-all duration-300">
                     <!-- Chests rendered here -->
-                </div>
-
-                <!-- Controls (Result Actions) -->
-                <div id="action-controls" class="hidden flex justify-center gap-4 mb-6">
-                    <button id="btn-reveal" class="bg-rose-500 hover:bg-rose-600 text-white font-bold py-2 px-5 rounded-lg shadow-sm transition-colors text-xs">
-                        정답 포기하고 모두 열기
-                    </button>
                 </div>
             </div>
 
             <!-- Right Control Panel -->
             <div id="right-control-panel" class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 lg:col-span-1 flex flex-col gap-2">
-                <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-1.5">상호작용</h3>
-                <div id="gameplay-controls" class="hidden flex flex-col gap-2 w-full">
+                
+                <div class="mb-3 bg-slate-50 p-2.5 rounded-lg border border-slate-200 shadow-sm relative">
+                    <h4 class="text-[10px] font-extrabold text-slate-600 mb-2 flex items-center justify-between">
+                        <span class="flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+                            클라우드 세이브 슬롯 (자동 저장)
+                        </span>
+                        <span id="save-indicator" class="text-[10px] text-emerald-600 font-extrabold opacity-0 transition-opacity duration-300 drop-shadow-sm bg-emerald-100 px-1.5 rounded">💾 자동 저장됨</span>
+                    </h4>
+                    
+                    <div class="flex gap-1.5">
+                        <button id="slot-Mimic1" onclick="selectSlot('Mimic1')" class="flex-1 bg-indigo-600 text-white ring-2 ring-indigo-300 font-extrabold py-2 px-1 rounded text-[11px] shadow-sm transition-all">Mimic1</button>
+                        <button id="slot-Mimic2" onclick="selectSlot('Mimic2')" class="flex-1 bg-white hover:bg-indigo-50 text-slate-600 border border-slate-300 font-extrabold py-2 px-1 rounded text-[11px] shadow-sm transition-all">Mimic2</button>
+                        <button id="slot-Mimic3" onclick="selectSlot('Mimic3')" class="flex-1 bg-white hover:bg-indigo-50 text-slate-600 border border-slate-300 font-extrabold py-2 px-1 rounded text-[11px] shadow-sm transition-all">Mimic3</button>
+                    </div>
+                    <p class="text-[9.5px] text-slate-500 mt-2 leading-tight text-center break-keep">모든 진행 상황이 <b>실시간으로 자동 저장</b>됩니다.</p>
+                </div>
+                <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-1.5">진행 및 액션</h3>
+                
+                <button id="btn-next-floor" class="hidden w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-extrabold py-3 px-4 rounded-lg shadow-md transition-all text-sm mb-2 animate-bounce">
+                    다음 층으로 진행 (R)
+                </button>
+                <button id="btn-restart" class="hidden w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-4 rounded-lg shadow-sm transition-colors text-sm mb-2">
+                    기록 종료 및 재시작 (R)
+                </button>
+
+                <div id="gameplay-controls" class="flex flex-col gap-2 w-full mt-2">
                     <button id="btn-open-o" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-3 rounded-lg shadow-sm transition-colors text-xs flex items-center justify-center gap-2">
-                        ⭕ 마킹 모두 열기
+                        ⭕ 마킹 모두 열기 (Z)
                     </button>
                     <button id="btn-clear-marks" class="w-full bg-slate-500 hover:bg-slate-600 text-white font-bold py-2.5 px-3 rounded-lg shadow-sm transition-colors text-xs flex items-center justify-center gap-2">
-                        🧹 마킹/메모 모두 지우기
+                        🧹 마킹/메모 모두 지우기 (X)
                     </button>
-                </div>
-                <div id="gameplay-controls-placeholder" class="text-center text-xs text-slate-400 py-6">
-                    게임이 시작되면 활성화됩니다.
                 </div>
 
                 <div class="border-t border-slate-100 pt-2 mt-2 text-[11px] text-slate-700 leading-relaxed">
                     <b class="text-slate-900 block mb-1">단축키 안내:</b>
                     • 마우스 올리고 <code class="bg-slate-100 px-1 rounded font-bold text-slate-900">Q</code>/<code class="bg-slate-100 px-1 rounded font-bold text-slate-900">W</code>/<code class="bg-slate-100 px-1 rounded font-bold text-slate-900">E</code> : ⭕/❌/❓<br>
                     • 마우스 올리고 <code class="bg-slate-100 px-1 rounded font-bold text-slate-900">1~5</code> : 메모 숫자<br>
-                    • <code class="bg-slate-100 px-1 rounded font-bold text-slate-900">Space</code> : ⭕ 마킹 모두 열기<br>
-                    • <code class="bg-slate-100 px-1 rounded font-bold text-slate-900">Shift + Space</code> : 모두 지우기<br>
-                    • <code class="bg-slate-100 px-1 rounded font-bold text-slate-900">R</code> : 새 게임 시작
+                    • <code class="bg-slate-100 px-1 rounded font-bold text-slate-900">C</code> 빠르게 2회 : X 제외 모두 열기<br>
+                    • <code class="bg-slate-100 px-1 rounded font-bold text-slate-900">R</code> : 게임오버 시 재시작 / 클리어 시 다음 층
                 </div>
             </div>
 
         </div>
+    </div>
 
+    <!-- Rest Area Overlay -->
+    <div id="rest-area-overlay" class="hidden fixed inset-0 bg-slate-900 bg-opacity-85 flex items-center justify-center z-50 transition-opacity">
+        <div class="bg-white p-6 md:p-8 rounded-2xl w-11/12 max-w-md text-center shadow-2xl border-4 border-indigo-200">
+            <h2 class="text-2xl md:text-3xl font-extrabold text-indigo-700 mb-2 drop-shadow-sm">🔥 휴식처 (Camp) 🔥</h2>
+            <p class="text-sm font-bold text-slate-600 mb-6 bg-slate-100 py-2 rounded-lg">다음 층을 대비해 한 가지 이득을 선택하세요.</p>
+            <div id="rest-options" class="flex flex-col gap-3"></div>
+        </div>
     </div>
 
     <script>
-        // --- State ---
-        let chestsData = []; 
+        
+        // --- Cloud Sync Bridge ---
+        window.getGameState = () => {
+            return {
+                currentFloor, maxFloor, permCurses, eventState,
+                chestsData, totalOpened, totalTrueChests, isGameOver, isFloorCleared,
+                currentTempCurses, tempBuffs, currentEventLogs, isRandomMode, isLuckEvent,
+                restVisitedForCurrentFloor
+            };
+        };
+
+        window.loadGameState = (data) => {
+            currentFloor = data.currentFloor || 1;
+            maxFloor = data.maxFloor || 1;
+            permCurses = data.permCurses || { random: false, sleepLevel: 0, addChests: 0, addMimics: 0 };
+            eventState = data.eventState || { initialChance: 15, chance: 15, triggerCount: 0, missCount: 0 };
+            localStorage.setItem('mimicMaxFloor', maxFloor);
+            
+            chestsData = data.chestsData || [];
+            // Firebase RTDB는 빈 배열([])을 저장하지 않고 날려버리는 특성이 있습니다.
+            // 불러올 때 memo 배열이 사라져서 에러가 나는 것을 방지하기 위해 빈 배열을 강제로 주입합니다.
+            chestsData.forEach(c => {
+                if (!c.memo) c.memo = [];
+            });
+            totalOpened = data.totalOpened || 0;
+            totalTrueChests = data.totalTrueChests || 0;
+            isGameOver = data.isGameOver || false;
+            isFloorCleared = data.isFloorCleared || false;
+            currentTempCurses = data.currentTempCurses || {};
+            tempBuffs = data.tempBuffs || { preventRandom: false, reduceSleep: 0 };
+            currentEventLogs = data.currentEventLogs || [];
+            isRandomMode = data.isRandomMode || false;
+            isLuckEvent = data.isLuckEvent || false;
+            restVisitedForCurrentFloor = data.restVisitedForCurrentFloor || false;
+            
+            if (chestsData && chestsData.length > 0) {
+                let calcChests = chestsData.length;
+                let calcMimics = chestsData.filter(c => c.role === 'M').length;
+                let sleepCount = chestsData.filter(c => c.isSleeping).length;
+                let isBoss = currentFloor % 4 === 0;
+                
+                let currentTreasuresSummary = {};
+                chestsData.forEach((c) => {
+                    if (c.role === 'T') {
+                        currentTreasuresSummary[c.treasure] = (currentTreasuresSummary[c.treasure] || 0) + 1;
+                    }
+                });
+                
+                updateUI(calcChests, isRandomMode, calcMimics, sleepCount, isBoss, currentTreasuresSummary);
+                renderChests();
+                
+                if (isGameOver) {
+                    if (isFloorCleared) {
+                        document.getElementById('btn-next-floor').classList.remove('hidden');
+                        document.getElementById('btn-restart').classList.add('hidden');
+                    } else {
+                        document.getElementById('btn-restart').classList.remove('hidden');
+                        document.getElementById('btn-next-floor').classList.add('hidden');
+                    }
+                }
+            } else {
+                initFloor();
+            }
+        };
+
+        window.startClimb = startClimb; // Expose startClimb to global for selectSlot
+        
+        // --- Game State ---
+        let currentFloor = 1;
+        let maxFloor = localStorage.getItem('mimicMaxFloor') || 1;
+
+        let baseChests = 4;
+        let baseMimics = 1;
+
+        let permCurses = {
+            random: false,
+            sleepLevel: 0,
+            addChests: 0,
+            addMimics: 0
+        };
+
+        let tempBuffs = {
+            preventRandom: false,
+            reduceSleep: 0
+        };
+
+        let eventState = {
+            initialChance: 15,
+            chance: 15,
+            triggerCount: 0,
+            missCount: 0
+        };
+
+        let currentTempCurses = {};
+        let currentEventLogs = [];
+        let isLuckEvent = false;
+
+        let isFloorCleared = false;
+        let restVisitedForCurrentFloor = false;
+        let isRandomMode = false;
         let isGameOver = false;
+
+        let chestsData = []; 
         let totalOpened = 0;
         let totalTrueChests = 0;
-        let isRandomMode = false;
-        let isSettingsOpen = true;
-        let currentTreasuresSummary = {};
-        let treasureColorMap = {}; 
         let hoveredChestIdx = null;
 
         const colors = ['red', 'blue', 'green', 'yellow', 'purple'];
-        const colorHex = {
-            red: '#ef4444',
-            blue: '#3b82f6',
-            green: '#22c55e',
-            yellow: '#eab308',
-            purple: '#a855f7'
-        };
-
+        const colorHex = { red: '#ef4444', blue: '#3b82f6', green: '#22c55e', yellow: '#eab308', purple: '#a855f7' };
+        
+        let treasureColorMap = {};
         const treasurePalette = [
-            { text: 'text-rose-600', bg: 'bg-rose-100', hex: '#f43f5e' },
-            { text: 'text-indigo-600', bg: 'bg-indigo-100', hex: '#6366f1' },
-            { text: 'text-teal-600', bg: 'bg-teal-100', hex: '#14b8a6' },
-            { text: 'text-amber-600', bg: 'bg-amber-100', hex: '#f59e0b' },
-            { text: 'text-fuchsia-600', bg: 'bg-fuchsia-100', hex: '#d946ef' },
-            { text: 'text-cyan-600', bg: 'bg-cyan-100', hex: '#06b6d4' }
+            { text: 'text-rose-600', bg: 'bg-rose-100' }, { text: 'text-indigo-600', bg: 'bg-indigo-100' },
+            { text: 'text-teal-600', bg: 'bg-teal-100' }, { text: 'text-amber-600', bg: 'bg-amber-100' },
+            { text: 'text-fuchsia-600', bg: 'bg-fuchsia-100' }, { text: 'text-cyan-600', bg: 'bg-cyan-100' }
+        ];
+        const rawTreasures = ['골드', '아이템', '장비', '유물', '보석'];
+
+        const EVENT_TYPES = [
+            { id: 'TEMP_CHESTS', type: 'temp', text: '이번 층 상자 수 2개 증가' },
+            { id: 'TEMP_MIMICS', type: 'temp', text: '이번 층 미믹 수 1개 증가' },
+            { id: 'TEMP_SLEEP', type: 'temp', text: '이번 층 잠자는 상자 2개 증가' },
+            { id: 'TEMP_RANDOM', type: 'temp', text: '이번 층 미믹 수 랜덤화' },
+            { id: 'PERM_CHESTS', type: 'perm', text: '이후 모든 층 상자 수 1개 증가' },
+            { id: 'PERM_MIMICS', type: 'perm', text: '이후 모든 층 미믹 수 1개 증가' },
+            { id: 'PERM_RANDOM', type: 'perm', text: '영구 미믹 랜덤화 활성' },
+            { id: 'PERM_SLEEP', type: 'perm', text: '영구 수면 저주 1단계 강화' }
         ];
 
-        // DOM Elements
-        const sliderChests = document.getElementById('slider-chests');
-        const sliderMimics = document.getElementById('slider-mimics');
-        const valChests = document.getElementById('val-chests');
-        const valMimics = document.getElementById('val-mimics');
-        const chkRandom = document.getElementById('chk-random');
-        const btnStart = document.getElementById('btn-start');
+        // DOM
         const container = document.getElementById('chests-container');
         const statusMsg = document.getElementById('status-message');
         const genWarning = document.getElementById('gen-warning');
-        const actionControls = document.getElementById('action-controls');
-        const btnReveal = document.getElementById('btn-reveal');
-        const gameplayControls = document.getElementById('gameplay-controls');
-        const gameplayPlaceholder = document.getElementById('gameplay-controls-placeholder');
+        
+        const btnNextFloor = document.getElementById('btn-next-floor');
+        const btnRestart = document.getElementById('btn-restart');
         const btnOpenO = document.getElementById('btn-open-o');
         const btnClearMarks = document.getElementById('btn-clear-marks');
-        
-        const settingsHeader = document.getElementById('settings-header');
-        const settingsContent = document.getElementById('settings-content');
-        const btnToggleSettings = document.getElementById('btn-toggle-settings');
-        const settingsSummary = document.getElementById('settings-summary');
-        const inputTreasures = document.getElementById('input-treasures');
 
-        const btnChestsDown = document.getElementById('btn-chests-down');
-        const btnChestsUp = document.getElementById('btn-chests-up');
-        const btnMimicsDown = document.getElementById('btn-mimics-down');
-        const btnMimicsUp = document.getElementById('btn-mimics-up');
-
-        const infoTotalChests = document.getElementById('info-total-chests');
-        const infoMimics = document.getElementById('info-mimics');
-        const infoTreasuresList = document.getElementById('info-treasures-list');
-
-        settingsHeader.addEventListener('click', () => {
-            isSettingsOpen = !isSettingsOpen;
-            if (isSettingsOpen) {
-                settingsContent.style.display = 'block';
-                btnToggleSettings.innerText = '▼ 접기';
-            } else {
-                settingsContent.style.display = 'none';
-                btnToggleSettings.innerText = '▲ 펼치기';
+        // --- Utils ---
+        function shuffleArray(array) {
+            const shuffled = [...array];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
             }
-        });
+            return shuffled;
+        }
 
-        // --- Logic Engine ---
+        // --- Core Climbing System ---
+        function startClimb() {
+            currentFloor = 1;
+            baseChests = 4;
+            baseMimics = 1;
+            permCurses = { random: false, sleepLevel: 0, addChests: 0, addMimics: 0 };
+            eventState = { initialChance: 15, chance: 15, triggerCount: 0, missCount: 0 };
+            restVisitedForCurrentFloor = false;
+            initFloor();
+        }
+
+        function drawEvent() {
+            let pool = EVENT_TYPES.filter(e => {
+                if ((e.id === 'PERM_RANDOM' || e.id === 'TEMP_RANDOM') && permCurses.random) return false;
+                if ((e.id === 'PERM_MIMICS' || e.id === 'TEMP_MIMICS') && permCurses.addMimics > 0) return false;
+                if ((e.id === 'PERM_CHESTS' || e.id === 'TEMP_CHESTS') && permCurses.addChests > 0) return false;
+                if ((e.id === 'PERM_SLEEP' || e.id === 'TEMP_SLEEP') && permCurses.sleepLevel > 0) return false;
+                return true;
+            });
+            if (pool.length === 0) return { id: 'TEMP_SLEEP', type: 'temp', text: '이번 층 잠자는 상자 1개 증가 (대체)' };
+            return pool[Math.floor(Math.random() * pool.length)];
+        }
+
+        function applyEvent(ev) {
+            currentEventLogs.push(`⚠️ [이벤트] ${ev.text}`);
+            if (ev.id === 'TEMP_CHESTS') currentTempCurses.addChests = (currentTempCurses.addChests || 0) + 2;
+            if (ev.id === 'TEMP_MIMICS') currentTempCurses.addMimics = (currentTempCurses.addMimics || 0) + 1;
+            if (ev.id === 'TEMP_SLEEP') currentTempCurses.addSleep = (currentTempCurses.addSleep || 0) + 2;
+            if (ev.id === 'TEMP_RANDOM') currentTempCurses.random = true;
+            if (ev.id === 'PERM_CHESTS') permCurses.addChests += 1;
+            if (ev.id === 'PERM_MIMICS') permCurses.addMimics += 1;
+            if (ev.id === 'PERM_RANDOM') permCurses.random = true;
+            if (ev.id === 'PERM_SLEEP') permCurses.sleepLevel += 1;
+        }
+
+        function showRestArea() {
+            let overlay = document.getElementById('rest-area-overlay');
+            let optionsContainer = document.getElementById('rest-options');
+            optionsContainer.innerHTML = '';
+            
+            let possibleOptions = [];
+            possibleOptions.push({ text: "수면 저주 일시 완화 (이번 층 수면 2개 감소)", action: () => { tempBuffs.reduceSleep = 2; }});
+            possibleOptions.push({ text: "혼돈 차단 (이번 층 미믹 랜덤화 방지)", action: () => { tempBuffs.preventRandom = true; }});
+            possibleOptions.push({ text: "이벤트 억제 (일반 이벤트 확률 초기화)", action: () => { eventState.chance = eventState.initialChance; eventState.missCount = 0; }});
+            
+            if (permCurses.random) possibleOptions.push({ text: "✨ 영구 랜덤 저주 완전 정화", action: () => { permCurses.random = false; }});
+            if (permCurses.addMimics > 0) possibleOptions.push({ text: "✨ 영구 미믹 증식 저주 1단계 정화", action: () => { permCurses.addMimics = 0; }});
+            if (permCurses.addChests > 0) possibleOptions.push({ text: "✨ 영구 상자 증식 저주 1단계 정화", action: () => { permCurses.addChests = 0; }});
+            if (permCurses.sleepLevel > 0) possibleOptions.push({ text: "✨ 영구 수면 저주 1단계 정화", action: () => { permCurses.sleepLevel = 0; }});
+            
+            let choices = shuffleArray(possibleOptions).slice(0, 3);
+            choices.forEach(c => {
+                let btn = document.createElement('button');
+                btn.className = "w-full bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-900 border border-indigo-200 font-extrabold py-3.5 px-4 rounded-xl shadow-sm transition-all text-sm text-left break-keep";
+                btn.innerText = c.text;
+                btn.onclick = () => {
+                    c.action();
+                    overlay.classList.add('hidden');
+                    restVisitedForCurrentFloor = true;
+                    initFloor();
+                };
+                optionsContainer.appendChild(btn);
+            });
+            overlay.classList.remove('hidden');
+        }
+
+        function updateUI(calcChests, isRandom, calcMimics, sleepCount, isBoss, treasuresSummary = {}) {
+            document.getElementById('ui-floor').innerText = `${currentFloor}F`;
+            document.getElementById('ui-max-floor').innerText = `${maxFloor}`;
+            
+            let nextRest = 5 - (currentFloor % 5);
+            document.getElementById('ui-next-rest').innerText = nextRest === 5 ? "현재 층" : `${nextRest}층 남음`;
+            
+            let nextBoss = 4 - (currentFloor % 4);
+            document.getElementById('ui-next-boss').innerText = nextBoss === 4 ? "현재 층" : `${nextBoss}층 남음`;
+            
+            document.getElementById('info-total-chests').innerText = `${calcChests}개`;
+            document.getElementById('info-mimics').innerText = isRandom ? '? 마리' : `${calcMimics}마리`;
+            document.getElementById('info-sleep').innerText = `${sleepCount}개`;
+            
+            document.getElementById('ui-event-chance').innerText = currentFloor >= 6 ? `${Math.floor(eventState.chance)}%` : `(6F부터)`;
+            
+            let permList = [];
+            if (permCurses.addChests > 0) permList.push(`상자 증식 +${permCurses.addChests}`);
+            if (permCurses.addMimics > 0) permList.push(`미믹 증식 +${permCurses.addMimics}`);
+            if (permCurses.random) permList.push(`미믹 랜덤화`);
+            if (permCurses.sleepLevel > 0) permList.push(`수면 저주 Lv.${permCurses.sleepLevel}`);
+            
+            document.getElementById('ui-perm-curses').innerHTML = permList.length > 0 
+                ? permList.map(c => `<span class="bg-red-100 text-red-800 px-2 py-1 rounded text-[10px] font-extrabold shadow-sm">${c}</span>`).join(' ')
+                : '<span class="text-slate-400 text-xs font-bold px-1">활성화된 영구 저주가 없습니다.</span>';
+                
+            let infoTreasuresList = document.getElementById('info-treasures-list');
+            if (infoTreasuresList) {
+                infoTreasuresList.innerHTML = '';
+                Object.entries(treasuresSummary).forEach(([trName, count]) => {
+                    const tCol = treasureColorMap[trName] || treasurePalette[0];
+                    let item = document.createElement('div');
+                    item.className = "flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-full border border-slate-200 shadow-2xs";
+                    item.innerHTML = `<span class="font-bold text-xs ${tCol.text}">• ${trName}</span><span class="font-extrabold text-slate-800 text-xs">${count}개</span>`;
+                    infoTreasuresList.appendChild(item);
+                });
+            }
+
+            let logContainer = document.getElementById('ui-event-logs');
+            logContainer.innerHTML = '';
+            currentEventLogs.forEach(log => {
+                let div = document.createElement('div');
+                div.className = "text-xs font-extrabold text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200 shadow-sm mt-1";
+                div.innerText = log;
+                logContainer.appendChild(div);
+            });
+            
+            let mainPanel = document.getElementById('left-info-panel');
+            if (isBoss) {
+                mainPanel.classList.add('border-red-400', 'bg-red-50');
+                mainPanel.classList.remove('border-slate-200', 'bg-white');
+            } else {
+                mainPanel.classList.remove('border-red-400', 'bg-red-50');
+                mainPanel.classList.add('border-slate-200', 'bg-white');
+            }
+
+            genWarning.classList.add('invisible');
+            statusMsg.innerText = isBoss ? "보스 층입니다! 보스의 저주를 극복하고 추리하세요." : "단서를 종합해 추리를 시작하세요!";
+            statusMsg.className = `text-center text-lg md:text-xl font-extrabold mb-4 h-7 drop-shadow-sm ${isBoss ? 'text-red-600' : 'text-indigo-700'}`;
+            
+            btnNextFloor.classList.add('hidden');
+            btnRestart.classList.add('hidden');
+        }
+
+        function initFloor() {
+            isGameOver = false;
+            isFloorCleared = false;
+            currentTempCurses = {};
+            currentEventLogs = [];
+            isLuckEvent = false;
+            container.innerHTML = '';
+            
+            if (currentFloor % 5 === 0 && !restVisitedForCurrentFloor) {
+                showRestArea();
+                return;
+            }
+            restVisitedForCurrentFloor = false; 
+            
+            let isBoss = currentFloor % 4 === 0;
+            
+            if (currentFloor >= 6 && !isBoss) {
+                if (Math.random() < 0.01) {
+                    isLuckEvent = true;
+                    currentEventLogs.push("🍀 [희귀 행운] 상자가 4개, 미믹이 1개로 고정됩니다!");
+                } else {
+                    let isEvent = Math.random() * 100 < eventState.chance;
+                    let floorTier = Math.floor(currentFloor / 10);
+                    let multiplier = 2 + floorTier;
+                    
+                    if (isEvent) {
+                        applyEvent(drawEvent());
+                        eventState.chance = eventState.initialChance;
+                        eventState.triggerCount++;
+                        eventState.missCount = 0;
+                    } else {
+                        eventState.missCount++;
+                        eventState.triggerCount = 0;
+                        eventState.chance = Math.min(100, eventState.chance + (eventState.missCount * multiplier));
+                    }
+                }
+            }
+            
+            let calcChests = baseChests + Math.floor((currentFloor - 1) / 10) + permCurses.addChests + (currentTempCurses.addChests || 0);
+            let calcMimics = baseMimics + Math.floor((currentFloor - 1) / 20) + permCurses.addMimics + (currentTempCurses.addMimics || 0);
+            
+            let isRandom = (permCurses.random || currentTempCurses.random || isBoss) && !tempBuffs.preventRandom;
+            
+            if (isBoss) {
+                calcChests += 1;
+                currentEventLogs.push("💀 [보스 층] 상자 수 증가, 수면 확정, 미믹 랜덤화, 연관성 감소!");
+            }
+            
+            if (isLuckEvent) {
+                calcChests = 4;
+                calcMimics = 1;
+                isRandom = false;
+            }
+            
+            calcChests = Math.min(25, Math.max(3, calcChests));
+            let maxMimics = Math.max(1, Math.floor((calcChests - 1) / 2));
+            if (isRandom) { calcMimics = Math.floor(Math.random() * maxMimics) + 1; } 
+            else { calcMimics = Math.min(maxMimics, calcMimics); }
+            
+            let sleepCount = permCurses.sleepLevel + (currentTempCurses.addSleep || 0) + (isBoss ? 1 : 0) - (tempBuffs.reduceSleep || 0);
+            sleepCount = Math.max(0, Math.min(calcChests, sleepCount));
+            tempBuffs = { preventRandom: false, reduceSleep: 0 }; 
+            
+            genWarning.classList.remove('invisible');
+            statusMsg.innerText = "맵 생성 중...";
+            statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-indigo-700 drop-shadow-sm";
+            
+            setTimeout(() => {
+                let shuffledPalette = shuffleArray(treasurePalette);
+                rawTreasures.forEach((tr, idx) => { treasureColorMap[tr] = shuffledPalette[idx % shuffledPalette.length]; });
+                
+                isRandomMode = isRandom;
+                let puzzle = generatePuzzle(calcChests, calcMimics, rawTreasures, isBoss);
+                if (!puzzle) { startClimb(); return; } // Very rare fallback
+                
+                chestsData = [];
+                for (let i = 0; i < calcChests; i++) {
+                    chestsData.push({
+                        role: puzzle.roles[i],
+                        originalStatement: puzzle.statements[i].text,
+                        statement: puzzle.statements[i].text,
+                        color: puzzle.colors[i],
+                        treasure: puzzle.roles[i] === 'T' ? puzzle.treasures[i] : '미믹 (꽝)',
+                        isOpen: false,
+                        isSleeping: false,
+                        mark: null,
+                        memo: []
+                    });
+                }
+                
+                if (sleepCount > 0) {
+                    let indices = shuffleArray(Array.from({length: calcChests}, (_, i) => i)).slice(0, sleepCount);
+                    indices.forEach(idx => {
+                        chestsData[idx].isSleeping = true;
+                        chestsData[idx].statement = 'zzZ';
+                    });
+                }
+                
+                totalOpened = 0;
+                totalTrueChests = calcChests - calcMimics;
+                
+                let currentTreasuresSummary = {};
+                puzzle.roles.forEach((role, idx) => {
+                    if (role === 'T') {
+                        let tr = puzzle.treasures[idx];
+                        currentTreasuresSummary[tr] = (currentTreasuresSummary[tr] || 0) + 1;
+                    }
+                });
+                
+                updateUI(calcChests, isRandom, calcMimics, sleepCount, isBoss, currentTreasuresSummary);
+                renderChests();
+                if(window.autoSaveToCloud) window.autoSaveToCloud();
+            }, 50);
+        }
+
+        // --- Generation Engine (Preserved logic with weight adjustments) ---
         function getGridLayout(n) {
             if (n === 3) return { cols: 3, rows: 2, pos: [[0,1], [1,0], [1,2]] }; 
             if (n === 4) return { cols: 2, rows: 2, pos: [[0,0], [0,1], [1,0], [1,1]] };
@@ -283,31 +675,28 @@
             if (n === 10) return { cols: 5, rows: 2, pos: [[0,0],[0,1],[0,2],[0,3],[0,4], [1,0],[1,1],[1,2],[1,3],[1,4]] };
             if (n === 11) return { cols: 7, rows: 3, pos: [[0,0],[0,2],[0,4],[0,6], [1,1],[1,3],[1,5], [2,0],[2,2],[2,4],[2,6]] }; 
             if (n === 12) return { cols: 4, rows: 3, pos: [[0,0],[0,1],[0,2],[0,3], [1,0],[1,1],[1,2],[1,3], [2,0],[2,1],[2,2],[2,3]] };
-            return { cols: n, rows: 1, pos: Array.from({length: n}, (_, i) => [0, i]) };
+            if (n <= 15) return { cols: 5, rows: 3, pos: Array.from({length:n}, (_, i) => [Math.floor(i/5), i%5]) };
+            return { cols: 6, rows: Math.ceil(n/6), pos: Array.from({length: n}, (_, i) => [Math.floor(i/6), i%6]) };
         }
 
         function generateRoles(n, m) {
             let arr = Array(n).fill('T');
             for(let i=0; i<m; i++) arr[i] = 'M';
-            return arr.sort(() => Math.random() - 0.5);
+            return shuffleArray(arr);
         }
 
         function getRandomColors(n) {
             let maxColors = Math.min(5, Math.max(2, Math.floor(n/2)));
-            let shuffledColors = [...colors].sort(() => 0.5 - Math.random());
+            let shuffledColors = shuffleArray(colors);
             let usedColors = shuffledColors.slice(0, maxColors);
             let resultColors = [];
-            for (let i = 0; i < n; i++) {
-                resultColors.push(usedColors[Math.floor(Math.random() * usedColors.length)]);
-            }
+            for (let i = 0; i < n; i++) resultColors.push(usedColors[Math.floor(Math.random() * usedColors.length)]);
             return resultColors;
         }
 
         function getCoord(idx, layout) {
             const [row, col] = layout.pos[idx];
-            const colName = String.fromCharCode(65 + col);
-            const rowName = (row + 1).toString();
-            return { colName, rowName, name: `${colName}${rowName}` };
+            return { colName: String.fromCharCode(65 + col), rowName: (row + 1).toString(), name: `${String.fromCharCode(65 + col)}${row + 1}` };
         }
 
         function checkAdjacency(combo, layout) {
@@ -324,516 +713,306 @@
             return false;
         }
 
-        function generatePossibleStatements(speakerIdx, roles, chestColors, layout) {
-            const num = roles.length;
-            const myRole = roles[speakerIdx];
-            const isTruth = (myRole === 'T');
-            
-            const cols = layout.cols;
-            const rows = layout.rows;
-            const [row, col] = layout.pos[speakerIdx];
-            const totalM = roles.filter(r => r === 'M').length;
-            
-            let colorCounts = {}; 
-            for(let c of colors) colorCounts[c] = { T: 0, M: 0 };
-            for(let i = 0; i < num; i++) colorCounts[chestColors[i]][roles[i]]++;
+        function escapeStatementText(value) { return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+        function subjectParticle(word) {
+            const chars = [...String(word).trim()]; if (!chars.length) return '가';
+            const code = chars[chars.length - 1].charCodeAt(0);
+            return code >= 0xAC00 && code <= 0xD7A3 && ((code - 0xAC00) % 28) !== 0 ? '이' : '가';
+        }
+        function buildTreasurePlan(numChests, rawTreasures) {
+            let plan = shuffleArray([...rawTreasures]);
+            while (plan.length < numChests) plan.push(rawTreasures[Math.floor(Math.random() * rawTreasures.length)]);
+            return shuffleArray(plan);
+        }
+        function mapTreasuresToRoles(roles, treasurePlan) {
+            const map = Array(roles.length).fill(null); let ordinal = 0;
+            roles.forEach((role, idx) => { if (role === 'T') map[idx] = treasurePlan[ordinal++]; });
+            return map;
+        }
+        function evaluateOp(left, op, right) {
+            switch(op) { case '==': return left === right; case '!=': return left !== right; case '>': return left > right; case '<': return left < right; case '>=': return left >= right; case '<=': return left <= right; default: return false; }
+        }
 
+        function generatePossibleStatements(speakerIdx, roles, chestColors, layout, treasureByChest) {
+            const num = roles.length; const cols = layout.cols; const rows = layout.rows;
+            const [row, col] = layout.pos[speakerIdx]; const totalM = roles.filter(r => r === 'M').length;
+            let colorCounts = {}; for(let c of colors) colorCounts[c] = { T: 0, M: 0 };
+            for(let i = 0; i < num; i++) colorCounts[chestColors[i]][roles[i]]++;
             let stmts = [];
 
             const addStmt = (assumesTruth, type, text, data = {}, weight = 10, tags = []) => {
-                if (assumesTruth === isTruth) {
-                    stmts.push({ type, text, weightBase: weight, tags, ...data });
+                let certaintyIndices = []; let countGroup = null; let countOp = null; let countValue = null;
+                if (type === 'GLOBAL_M_COUNT') { countGroup = Array.from({ length: num }, (_, i) => i); countOp = data.op; countValue = data.count; }
+                else if (type === 'COLOR_M') { countGroup = chestColors.map((v, i) => v === data.color ? i : -1).filter(i => i >= 0); countOp = data.op; countValue = data.count; }
+                else if (type === 'GROUP_M_COUNT') { countGroup = [...(data.group || [])]; countOp = data.op; countValue = data.count; }
+                else if (type === 'GLOBAL_M_EXIST') { countGroup = Array.from({ length: num }, (_, i) => i); countOp = data.hasMimic ? '>' : '=='; countValue = 0; }
+                else if (type === 'GROUP_M_EXIST') { countGroup = [...(data.group || [])]; countOp = data.hasMimic ? '>' : '=='; countValue = 0; }
+                else if (type === 'NOT_COLOR_M') { countGroup = chestColors.map((v, i) => v !== data.color ? i : -1).filter(i => i >= 0); countOp = data.hasMimic ? '>' : '=='; countValue = 0; }
+
+                if (countGroup && countGroup.length && countOp) {
+                    const possibleCounts = [];
+                    for (let count = 0; count <= countGroup.length; count++) if (evaluateOp(count, countOp, countValue) === assumesTruth) possibleCounts.push(count);
+                    if (possibleCounts.length === 1 && (possibleCounts[0] === 0 || possibleCounts[0] === countGroup.length)) certaintyIndices = [...countGroup];
                 }
+                stmts.push({ type, text, assumesTruth, weightBase: weight, tags, certaintyIndices, ...data });
             };
 
             const presentColors = [...new Set(chestColors)];
-            const colorTags = {
-                red: '<span class="text-red-600 font-extrabold">빨강</span>',
-                blue: '<span class="text-blue-600 font-extrabold">파랑</span>',
-                green: '<span class="text-emerald-600 font-extrabold">초록</span>',
-                yellow: '<span class="text-amber-600 font-extrabold">노랑</span>',
-                purple: '<span class="text-purple-600 font-extrabold">보라</span>'
-            };
+            const shortColorNames = { red: '빨간', blue: '파란', green: '초록', yellow: '노란', purple: '보라' };
 
             const addCountStmts = (actualCount, maxCount, type, prefixText, dataTemplate, weight = 10, tags = []) => {
-                if (actualCount === 0) {
-                    addStmt(true, type, `${prefixText} 미믹이 없어.`, { op: '==', count: 0, ...dataTemplate }, weight, tags);
-                    addStmt(false, type, `${prefixText} 미믹이 존재해.`, { op: '>=', count: 1, ...dataTemplate }, weight, tags);
-                } else {
-                    addStmt(true, type, `${prefixText} 미믹은 정확히 ${actualCount}마리야.`, { op: '==', count: actualCount, ...dataTemplate }, weight, tags);
-                    addStmt(false, type, `${prefixText} 미믹이 없어.`, { op: '==', count: 0, ...dataTemplate }, weight, tags);
-                }
-
-                if (actualCount > 0) {
-                    if (Math.random() > 0.5 || actualCount === 1) {
-                        addStmt(true, type, `${prefixText} 미믹은 ${actualCount}마리 이상이야.`, { op: '>=', count: actualCount, ...dataTemplate }, weight, tags);
-                    } else {
-                        addStmt(true, type, `${prefixText} 미믹은 ${actualCount-1}마리 초과야.`, { op: '>', count: actualCount-1, ...dataTemplate }, weight, tags);
-                    }
-                    
-                    if (actualCount < maxCount) {
-                        if (Math.random() > 0.5) {
-                            addStmt(true, type, `${prefixText} 미믹은 ${actualCount}마리 이하야.`, { op: '<=', count: actualCount, ...dataTemplate }, weight, tags);
-                        } else {
-                            addStmt(true, type, `${prefixText} 미믹은 ${actualCount+1}마리 미만이야.`, { op: '<', count: actualCount+1, ...dataTemplate }, weight, tags);
-                        }
-                    }
-                }
+                const variants = [];
+                for (let n = 0; n <= maxCount; n++) variants.push({ truth: actualCount === n, text: n === 0 ? `${prefixText} 미믹이 없어.` : `${prefixText} 미믹은 정확히 ${n}마리야.`, data: { op: '==', count: n } });
+                for (let n = 1; n <= maxCount; n++) variants.push({ truth: actualCount >= n, text: `${prefixText} 미믹은 ${n}마리 이상이야.`, data: { op: '>=', count: n } });
+                for (let n = 1; n <= maxCount; n++) variants.push({ truth: actualCount <= n, text: `${prefixText} 미믹은 ${n}마리 이하야.`, data: { op: '<=', count: n } });
+                const candidateWeight = weight / Math.max(1, variants.length);
+                for (const variant of variants) addStmt(variant.truth, type, variant.text, { ...variant.data, ...dataTemplate }, candidateWeight, tags);
             };
 
             if (isRandomMode) {
                 let maxMimics = Math.max(1, Math.floor((num - 1) / 2));
-                addCountStmts(totalM, maxMimics, 'GLOBAL_M_COUNT', '이 맵 전체에', {}, 12, ['global_count']);
-                
+                addCountStmts(totalM, maxMimics, 'GLOBAL_M_COUNT', '이 맵 전체에는', {}, 12, ['global_count']);
+                addStmt(totalM === 0, 'GLOBAL_M_EXIST', '이 맵 전체에는 미믹이 없어.', { hasMimic: false }, 1.2, []);
+                addStmt(totalM !== 0, 'GLOBAL_M_EXIST', '이 맵 전체에는 미믹이 없어.', { hasMimic: false }, 1.2, []);
+                addStmt(totalM > 0, 'GLOBAL_M_EXIST', '이 맵 전체에는 미믹이 있어.', { hasMimic: true }, 1.2, []);
+                addStmt(totalM === 0, 'GLOBAL_M_EXIST', '이 맵 전체에는 미믹이 있어.', { hasMimic: true }, 1.2, []);
                 const isEven = (totalM % 2 === 0);
-                addStmt(isEven, 'GLOBAL_M_PARITY', `이 맵 전체의 미믹 개수는 짝수야.`, { parity: 0 }, 10, ['global_count']);
+                addStmt(isEven, 'GLOBAL_M_PARITY', `이 맵 전체의 미믹 개수는 짝수(0 포함)야.`, { parity: 0 }, 10, ['global_count']);
                 addStmt(!isEven, 'GLOBAL_M_PARITY', `이 맵 전체의 미믹 개수는 홀수야.`, { parity: 1 }, 10, ['global_count']);
             }
 
             const actualAdj = checkAdjacency(roles, layout);
-            addStmt(actualAdj === true, 'ADJACENCY_M', '이 맵에는 상하좌우로 인접한 미믹이 존재해.', { hasAdj: true }, 8, ['global']);
+            addStmt(actualAdj === true, 'ADJACENCY_M', '이 맵에는 상하좌우로 인접한 미믹이 있어.', { hasAdj: true }, 8, ['global']);
             addStmt(actualAdj === false, 'ADJACENCY_M', '이 맵에는 상하좌우로 붙어있는 미믹이 없어.', { hasAdj: false }, 8, ['global']);
 
             for (let c of presentColors) {
-                let mM = colorCounts[c].M;
-                let colorGroup = [];
+                let mM = colorCounts[c].M; let colorGroup = [];
                 for (let i = 0; i < num; i++) if (chestColors[i] === c) colorGroup.push(i);
-                
                 let t = [`color:${c}`];
-                addCountStmts(mM, colorGroup.length, 'COLOR_M', `[${colorTags[c]}] 상자 중`, { color: c }, 10, t);
-                
-                const isEven = (mM % 2 === 0);
-                addStmt(isEven, 'COLOR_PARITY', `[${colorTags[c]}] 상자의 미믹 개수는 짝수야.`, { color: c, parity: 0 }, 10, t);
-                addStmt(!isEven, 'COLOR_PARITY', `[${colorTags[c]}] 상자의 미믹 개수는 홀수야.`, { color: c, parity: 1 }, 10, t);
-                
+                addCountStmts(mM, colorGroup.length, 'COLOR_M', `${shortColorNames[c]}색 상자에는`, { color: c }, 10, t);
+                addStmt((mM % 2 === 0), 'COLOR_PARITY', `${shortColorNames[c]}색 상자의 미믹 개수는 짝수(0 포함)야.`, { color: c, parity: 0 }, 10, t);
+                addStmt(!(mM % 2 === 0), 'COLOR_PARITY', `${shortColorNames[c]}색 상자의 미믹 개수는 홀수야.`, { color: c, parity: 1 }, 10, t);
                 let notGroupSize = num - colorGroup.length;
                 if (notGroupSize > 0) {
                     let notGroupM = totalM - mM;
-                    addStmt(notGroupM > 0, 'NOT_COLOR_M', `[${colorTags[c]}] 상자가 아닌 다른 상자들에 미믹이 존재해.`, { color: c, hasMimic: true }, 6, t);
-                    addStmt(notGroupM === 0, 'NOT_COLOR_M', `[${colorTags[c]}] 상자가 아닌 다른 상자들에 미믹이 없어.`, { color: c, hasMimic: false }, 6, t);
+                    addStmt(notGroupM > 0, 'NOT_COLOR_M', `${shortColorNames[c]}색이 아닌 상자에는 미믹이 있어.`, { color: c, hasMimic: true }, 6, t);
+                    addStmt(notGroupM === 0, 'NOT_COLOR_M', `${shortColorNames[c]}색이 아닌 상자에는 미믹이 없어.`, { color: c, hasMimic: false }, 6, t);
                 }
-
                 if (presentColors.length > 1) {
                     let maxM = Math.max(...presentColors.map(col => colorCounts[col].M));
                     let minM = Math.min(...presentColors.map(col => colorCounts[col].M));
-                    if (mM === maxM && maxM > 0) addStmt(true, 'COLOR_EXTREME', `미믹이 가장 많은 색상은 [${colorTags[c]}]야.`, { color: c, isMax: true }, 3, t);
-                    if (mM === minM) addStmt(true, 'COLOR_EXTREME', `미믹이 가장 적은 색상은 [${colorTags[c]}]야.`, { color: c, isMax: false }, 3, t);
+                    addStmt(mM === maxM, 'COLOR_EXTREME', `미믹이 가장 많은 색상은 ${shortColorNames[c]}색이야.`, { color: c, isMax: true }, 3, t);
+                    addStmt(mM === minM, 'COLOR_EXTREME', `미믹이 가장 적은 색상은 ${shortColorNames[c]}색이야.`, { color: c, isMax: false }, 3, t);
                 }
             }
 
             const myColor = chestColors[speakerIdx];
-            let sameColorGroup = [];
-            let diffColorGroup = [];
-            for (let i = 0; i < num; i++) {
-                if (i === speakerIdx) continue;
-                if (chestColors[i] === myColor) sameColorGroup.push(i);
-                else diffColorGroup.push(i);
-            }
-
-            if (sameColorGroup.length > 0) {
-                let sameColorM = sameColorGroup.filter(idx => roles[idx] === 'M').length;
-                addStmt(sameColorM > 0, 'GROUP_M_EXIST', `나를 제외하고, 내 색상인 상자들에 미믹이 존재해.`, { group: sameColorGroup, hasMimic: true }, 7, ['self_color']);
-                addStmt(sameColorM === 0, 'GROUP_M_EXIST', `나를 제외하고, 내 색상인 상자들에 미믹이 없어.`, { group: sameColorGroup, hasMimic: false }, 7, ['self_color']);
-            }
-
-            if (diffColorGroup.length > 0) {
-                let diffColorM = diffColorGroup.filter(idx => roles[idx] === 'M').length;
-                addStmt(diffColorM > 0, 'GROUP_M_EXIST', `나와 다른 색상의 상자들에 미믹이 존재해.`, { group: diffColorGroup, hasMimic: true }, 6, ['diff_color']);
-                addStmt(diffColorM === 0, 'GROUP_M_EXIST', `나와 다른 색상의 상자들에 미믹이 없어.`, { group: diffColorGroup, hasMimic: false }, 6, ['diff_color']);
-            }
+            let sameColorGroup = []; let diffColorGroup = [];
+            for (let i = 0; i < num; i++) { if (i === speakerIdx) continue; if (chestColors[i] === myColor) sameColorGroup.push(i); else diffColorGroup.push(i); }
+            const allSameColorGroup = chestColors.map((color, idx) => color === myColor ? idx : -1).filter(idx => idx >= 0);
 
             if (presentColors.length >= 2) {
                 for(let i=0; i<presentColors.length; i++){
                     for(let j=i+1; j<presentColors.length; j++){
                         let c1 = presentColors[i]; let c2 = presentColors[j];
-                        let m1 = colorCounts[c1].M; let m2 = colorCounts[c2].M;
-                        let t = [`color:${c1}`, `color:${c2}`];
-
+                        let m1 = colorCounts[c1].M; let m2 = colorCounts[c2].M; let t = [`color:${c1}`, `color:${c2}`];
                         const compare = (m1, m2, c1, c2) => {
-                            if(m1 > m2) {
-                                addStmt(true, 'COLOR_CMP', `[${colorTags[c1]}] 상자가 [${colorTags[c2]}]보다 미믹이 많아.`, { c1, c2, op: '>' }, 8, t);
-                                addStmt(false, 'COLOR_CMP', `[${colorTags[c1]}] 상자가 [${colorTags[c2]}]보다 적거나 같아.`, { c1, c2, op: '<=' }, 8, t);
-                            } else if (m1 < m2) {
-                                addStmt(true, 'COLOR_CMP', `[${colorTags[c1]}] 상자가 [${colorTags[c2]}]보다 미믹이 적어.`, { c1, c2, op: '<' }, 8, t);
-                                addStmt(false, 'COLOR_CMP', `[${colorTags[c1]}] 상자가 [${colorTags[c2]}]보다 많거나 같아.`, { c1, c2, op: '>=' }, 8, t);
-                            } else {
-                                addStmt(true, 'COLOR_CMP', `[${colorTags[c1]}]와 [${colorTags[c2]}]의 미믹 수가 같아.`, { c1, c2, op: '==' }, 8, t);
-                                addStmt(false, 'COLOR_CMP', `[${colorTags[c1]}]와 [${colorTags[c2]}]의 미믹 수가 달라.`, { c1, c2, op: '!=' }, 8, t);
-                            }
+                            addStmt(m1 < m2, 'COLOR_CMP', `${shortColorNames[c1]}색 상자가 ${shortColorNames[c2]}색 상자보다 미믹이 적어.`, { c1, c2, op: '<' }, 8, t);
+                            addStmt(m1 > m2, 'COLOR_CMP', `${shortColorNames[c1]}색 상자가 ${shortColorNames[c2]}색 상자보다 미믹이 많아.`, { c1, c2, op: '>' }, 8, t);
+                            addStmt(m1 === m2, 'COLOR_CMP', `${shortColorNames[c1]}색과 ${shortColorNames[c2]}색의 미믹 수가 같아.`, { c1, c2, op: '==' }, 8, t);
                         };
                         compare(m1, m2, c1, c2); compare(m2, m1, c2, c1); 
-
-                        let unionGroup = [];
-                        for(let k=0; k<num; k++) if (chestColors[k] === c1 || chestColors[k] === c2) unionGroup.push(k);
+                        let unionGroup = []; for(let k=0; k<num; k++) if (chestColors[k] === c1 || chestColors[k] === c2) unionGroup.push(k);
                         let unionM = unionGroup.filter(idx => roles[idx] === 'M').length;
-                        addCountStmts(unionM, unionGroup.length, 'GROUP_M_COUNT', `[${colorTags[c1]}]와 [${colorTags[c2]}]를 합치면`, { group: unionGroup }, 4, t);
+                        addCountStmts(unionM, unionGroup.length, 'GROUP_M_COUNT', `${shortColorNames[c1]}색과 ${shortColorNames[c2]}색을 합친 상자에는`, { group: unionGroup }, 1.5, []);
                     }
                 }
             }
 
-            let sameRow = []; layout.pos.forEach(([r, c], i) => { if(r === row) sameRow.push(i); });
-            let sameCol = []; layout.pos.forEach(([r, c], i) => { if(c === col) sameCol.push(i); });
-            let rowM = sameRow.filter(idx => roles[idx] === 'M').length;
-            let colM = sameCol.filter(idx => roles[idx] === 'M').length;
-            const myCoord = getCoord(speakerIdx, layout);
+            const spatialGroups = [];
+            const addSpatialGroup = (key, labels, group, weight = 7) => {
+                const unique = [...new Set(group)]; if (!unique.length) return;
+                const signature = [...unique].sort((a, b) => a - b).join(',');
+                if (spatialGroups.some(entry => entry.signature === signature && entry.key === key)) return;
+                spatialGroups.push({ key, labels: Array.isArray(labels) ? labels : [labels], group: unique, weight, signature });
+            };
+            const rowGroups = Array.from({ length: rows }, (_, r) => layout.pos.map(([rr], i) => rr === r ? i : -1).filter(i => i >= 0));
+            const colGroups = Array.from({ length: cols }, (_, c) => layout.pos.map(([, cc], i) => cc === c ? i : -1).filter(i => i >= 0));
+            
+            for (let r = 0; r < rows; r++) addSpatialGroup(`row:${r}`, [`${r + 1}행`, ...(r === row ? ['내가 있는 행'] : [])], rowGroups[r], 8);
+            for (let c = 0; c < cols; c++) addSpatialGroup(`col:${c}`, [`${String.fromCharCode(65 + c)}열`, ...(c === col ? ['내가 있는 열'] : [])], colGroups[c], 8);
+            
+            addSpatialGroup('edge:top', ['가장 위쪽 행'], rowGroups[0], 8);
+            addSpatialGroup('edge:bottom', ['가장 아래쪽 행'], rowGroups[rows - 1], 8);
+            addSpatialGroup('edge:left', ['가장 왼쪽 열'], colGroups[0], 8);
+            addSpatialGroup('edge:right', ['가장 오른쪽 열'], colGroups[cols - 1], 8);
+            addSpatialGroup('row:even', '짝수 행', layout.pos.map(([r], i) => r % 2 === 1 ? i : -1).filter(i => i >= 0), 5);
+            addSpatialGroup('row:odd', '홀수 행', layout.pos.map(([r], i) => r % 2 === 0 ? i : -1).filter(i => i >= 0), 5);
 
-            addStmt(rowM > 0, 'GROUP_M_EXIST', `[${myCoord.rowName}행] 전체에 미믹이 존재해.`, { group: sameRow, hasMimic: true }, 10, [`row:${myCoord.rowName}`]);
-            addStmt(rowM === 0, 'GROUP_M_EXIST', `[${myCoord.rowName}행] 전체에는 미믹이 없어.`, { group: sameRow, hasMimic: false }, 10, [`row:${myCoord.rowName}`]);
-            addStmt(colM > 0, 'GROUP_M_EXIST', `[${myCoord.colName}열] 전체에 미믹이 존재해.`, { group: sameCol, hasMimic: true }, 10, [`col:${myCoord.colName}`]);
-            addStmt(colM === 0, 'GROUP_M_EXIST', `[${myCoord.colName}열] 전체에는 미믹이 없어.`, { group: sameCol, hasMimic: false }, 10, [`col:${myCoord.colName}`]);
+            for (const color of presentColors) addSpatialGroup(`color:${color}`, [`${shortColorNames[color]}색 상자`], chestColors.map((v, i) => v === color ? i : -1).filter(i => i >= 0), 8);
+            addSpatialGroup('self-color:others', ['나와 같은 색의 다른 상자'], sameColorGroup, 6);
+            addSpatialGroup('self-color:all', ['나와 같은 색의 상자'], allSameColorGroup, 6);
+            addSpatialGroup('self-color:different', ['나와 다른 색의 상자'], diffColorGroup, 6);
 
+            const sameRow = rowGroups[row]; const rowM = sameRow.filter(idx => roles[idx] === 'M').length;
             if (rows > 1) {
-                let targetRow = (row + 1) % rows;
-                let trGroup = []; layout.pos.forEach(([r, c], i) => { if(r === targetRow) trGroup.push(i); });
-                if (trGroup.length > 0) {
-                    let trM = trGroup.filter(idx => roles[idx] === 'M').length;
-                    let r1 = myCoord.rowName, r2 = (targetRow+1).toString();
-                    if (rowM > trM) addStmt(true, 'ROW_CMP', `[${r1}행]이 [${r2}행]보다 미믹이 많아.`, { r1: row, r2: targetRow, op: '>' }, 6, []);
-                    if (rowM < trM) addStmt(true, 'ROW_CMP', `[${r1}행]이 [${r2}행]보다 미믹이 적어.`, { r1: row, r2: targetRow, op: '<' }, 6, []);
-                    if (rowM === trM) addStmt(true, 'ROW_CMP', `[${r1}행]과 [${r2}행]의 미믹 수가 같아.`, { r1: row, r2: targetRow, op: '==' }, 6, []);
-                }
+                const targetRow = (row + 1) % rows; const targetM = rowGroups[targetRow].filter(idx => roles[idx] === 'M').length;
+                addStmt(rowM > targetM, 'ROW_CMP', `${row + 1}행의 미믹 수가 ${targetRow + 1}행보다 많아.`, { r1: row, r2: targetRow, op: '>' }, 6, []);
+                addStmt(rowM < targetM, 'ROW_CMP', `${row + 1}행의 미믹 수가 ${targetRow + 1}행보다 적어.`, { r1: row, r2: targetRow, op: '<' }, 6, []);
+                addStmt(rowM === targetM, 'ROW_CMP', `${row + 1}행과 ${targetRow + 1}행의 미믹 수가 같아.`, { r1: row, r2: targetRow, op: '==' }, 6, []);
             }
-
             if (totalM > 1) {
-                let mRows = new Set();
-                roles.forEach((r, idx) => { if(r === 'M') mRows.add(layout.pos[idx][0]); });
-                const allDiff = (mRows.size === totalM);
-                addStmt(allDiff, 'ALL_DIFF_ROWS', '미믹들이 모두 서로 다른 행에 흩어져 있어.', { diff: true }, 4, ['global']);
-                addStmt(!allDiff, 'ALL_DIFF_ROWS', '같은 행에 미믹이 2마리 이상 모인 곳이 있어.', { diff: false }, 4, ['global']);
+                const mRows = new Set(); roles.forEach((r, i) => { if (r === 'M') mRows.add(layout.pos[i][0]); });
+                addStmt(mRows.size === totalM, 'ALL_DIFF_ROWS', '미믹들이 모두 서로 다른 행에 흩어져 있어.', { diff: true }, 4, ['global']);
+                addStmt(mRows.size < totalM, 'ALL_DIFF_ROWS', '같은 행에 미믹이 2마리 이상 모인 곳이 있어.', { diff: false }, 4, ['global']);
+                const mCols = new Set(); roles.forEach((r, i) => { if (r === 'M') mCols.add(layout.pos[i][1]); });
+                addStmt(mCols.size === totalM, 'ALL_DIFF_COLS', '미믹들이 모두 서로 다른 열에 흩어져 있어.', { diff: true }, 4, ['global']);
+                addStmt(mCols.size < totalM, 'ALL_DIFF_COLS', '같은 열에 미믹이 2마리 이상 모인 곳이 있어.', { diff: false }, 4, ['global']);
             }
 
-            let evenRowGroup = []; layout.pos.forEach(([r, c], i) => { if (r % 2 !== 0) evenRowGroup.push(i); });
-            let evenRowM = evenRowGroup.filter(idx => roles[idx] === 'M').length;
-            if (evenRowGroup.length > 0) {
-                addStmt(evenRowM > 0, 'GROUP_M_EXIST', `[짝수 행]들 중 어딘가에 미믹이 있어.`, { group: evenRowGroup, hasMimic: true }, 5, ['row_parity']);
-                addStmt(evenRowM === 0, 'GROUP_M_EXIST', `[짝수 행]들에는 미믹이 전혀 없어.`, { group: evenRowGroup, hasMimic: false }, 5, ['row_parity']);
+            const itemGroups = [];
+            for (const entry of spatialGroups) {
+                const mimicCount = entry.group.filter(idx => roles[idx] === 'M').length;
+                for (const label of entry.labels) {
+                    addStmt(mimicCount > 0, 'GROUP_M_EXIST', `${label}에는 미믹이 있어.`, { group: entry.group, hasMimic: true }, entry.weight, [entry.key]);
+                    addStmt(mimicCount === 0, 'GROUP_M_EXIST', `${label}에는 미믹이 없어.`, { group: entry.group, hasMimic: false }, entry.weight, [entry.key]);
+                }
+                if (!entry.key.startsWith('row:even') && !entry.key.startsWith('row:odd') && !entry.key.startsWith('color:') && !entry.key.startsWith('self-color:')) {
+                    if (entry.key.startsWith('row:') || entry.key.startsWith('col:') || entry.key.startsWith('edge:')) {
+                        for (const label of entry.labels) itemGroups.push({ label, group: entry.group, tag: entry.key });
+                    }
+                }
             }
-
-            let minR = Math.min(...layout.pos.map(([r, c]) => r));
-            let maxR = Math.max(...layout.pos.map(([r, c]) => r));
-            let minC = Math.min(...layout.pos.map(([r, c]) => c));
-            let maxC = Math.max(...layout.pos.map(([r, c]) => c));
-
-            let topGroup = [], bottomGroup = [], leftGroup = [], rightGroup = [];
-            layout.pos.forEach(([r, c], i) => {
-                if (r === minR) topGroup.push(i);
-                if (r === maxR) bottomGroup.push(i);
-                if (c === minC) leftGroup.push(i);
-                if (c === maxC) rightGroup.push(i);
-            });
-
-            if (topGroup.length > 0) {
-                let mCount = topGroup.filter(idx => roles[idx] === 'M').length;
-                addStmt(mCount > 0, 'GROUP_M_EXIST', `가장 위쪽에는 미믹이 있어.`, { group: topGroup, hasMimic: true }, 8, ['edge_top']);
-                addStmt(mCount === 0, 'GROUP_M_EXIST', `가장 위쪽에는 미믹이 없어.`, { group: topGroup, hasMimic: false }, 8, ['edge_top']);
-            }
-            if (bottomGroup.length > 0) {
-                let mCount = bottomGroup.filter(idx => roles[idx] === 'M').length;
-                addStmt(mCount > 0, 'GROUP_M_EXIST', `가장 아래쪽에는 미믹이 있어.`, { group: bottomGroup, hasMimic: true }, 8, ['edge_bottom']);
-                addStmt(mCount === 0, 'GROUP_M_EXIST', `가장 아래쪽에는 미믹이 없어.`, { group: bottomGroup, hasMimic: false }, 8, ['edge_bottom']);
-            }
-            if (leftGroup.length > 0) {
-                let mCount = leftGroup.filter(idx => roles[idx] === 'M').length;
-                addStmt(mCount > 0, 'GROUP_M_EXIST', `가장 왼쪽에는 미믹이 있어.`, { group: leftGroup, hasMimic: true }, 8, ['edge_left']);
-                addStmt(mCount === 0, 'GROUP_M_EXIST', `가장 왼쪽에는 미믹이 없어.`, { group: leftGroup, hasMimic: false }, 8, ['edge_left']);
-            }
-            if (rightGroup.length > 0) {
-                let mCount = rightGroup.filter(idx => roles[idx] === 'M').length;
-                addStmt(mCount > 0, 'GROUP_M_EXIST', `가장 오른쪽에는 미믹이 있어.`, { group: rightGroup, hasMimic: true }, 8, ['edge_right']);
-                addStmt(mCount === 0, 'GROUP_M_EXIST', `가장 오른쪽에는 미믹이 없어.`, { group: rightGroup, hasMimic: false }, 8, ['edge_right']);
-            }
-
             const dirGroups = [
-                { dr: -1, dc: 0, name: '위쪽' }, { dr: 1, dc: 0, name: '아래쪽' },
-                { dr: 0, dc: -1, name: '왼쪽' }, { dr: 0, dc: 1, name: '오른쪽' }
+                { key: 'item-direction:up-column', label: '내 위쪽 열', group: layout.pos.map(([r, c], i) => c === col && r < row ? i : -1).filter(i => i >= 0) },
+                { key: 'item-direction:down-column', label: '내 아래쪽 열', group: layout.pos.map(([r, c], i) => c === col && r > row ? i : -1).filter(i => i >= 0) },
+                { key: 'item-direction:left-row', label: '내 왼쪽 행', group: layout.pos.map(([r, c], i) => r === row && c < col ? i : -1).filter(i => i >= 0) },
+                { key: 'item-direction:right-row', label: '내 오른쪽 행', group: layout.pos.map(([r, c], i) => r === row && c > col ? i : -1).filter(i => i >= 0) }
             ];
+            for (const entry of dirGroups) if (entry.group.length) itemGroups.push(entry);
 
-            for (let dg of dirGroups) {
-                let dGroup = [];
-                layout.pos.forEach(([r, c], i) => {
-                    if (i === speakerIdx) return;
-                    if (dg.dr !== 0 && c === col && (r - row) * dg.dr > 0) dGroup.push(i);
-                    if (dg.dc !== 0 && r === row && (c - col) * dg.dc > 0) dGroup.push(i);
-                });
-
-                if (dGroup.length > 0) {
-                    let dM = dGroup.filter(idx => roles[idx] === 'M').length;
-                    let tag = `dir:${dg.name}`;
-                    addStmt(dM > 0, 'GROUP_M_EXIST', `내 [${dg.name}] 방향에는 미믹이 존재해.`, { group: dGroup, hasMimic: true }, 7, [tag]);
-                    addStmt(dM === 0, 'GROUP_M_EXIST', `내 [${dg.name}] 방향에는 미믹이 없어.`, { group: dGroup, hasMimic: false }, 7, [tag]);
+            const itemNames = [...new Set(treasureByChest.filter(Boolean))];
+            for (const item of itemNames) {
+                const safeItem = escapeStatementText(item); const particle = subjectParticle(item);
+                for (const entry of itemGroups) {
+                    const count = entry.group.filter(idx => treasureByChest[idx] === item).length;
+                    addStmt(count > 0, 'ITEM_GROUP_EXIST', `${entry.label}에는 ${safeItem}${particle} 있어.`, { group: entry.group, item, hasItem: true }, 0.65, [entry.tag, `item:${item}`]);
+                    addStmt(count === 0, 'ITEM_GROUP_EXIST', `${entry.label}에는 ${safeItem}${particle} 없어.`, { group: entry.group, item, hasItem: false }, 0.65, [entry.tag, `item:${item}`]);
                 }
             }
 
-            return stmts;
+            return { truthCandidates: stmts.filter(stmt => stmt.assumesTruth === true), falseCandidates: stmts.filter(stmt => stmt.assumesTruth === false) };
         }
 
-        function evaluateOp(left, op, right) {
-            switch(op) {
-                case '==': return left === right;
-                case '!=': return left !== right;
-                case '>': return left > right;
-                case '<': return left < right;
-                case '>=': return left >= right;
-                case '<=': return left <= right;
-                default: return false;
-            }
-        }
-
-        function testStatementsCombination(statements, combo, chestColors, layout) {
-            const num = combo.length;
-            let colorCounts = {}; 
-            for(let c of colors) colorCounts[c] = { M: 0 };
-            for(let i = 0; i < num; i++) {
-                if (combo[i] === 'M') colorCounts[chestColors[i]].M++;
-            }
-            const presentColors = [...new Set(chestColors)];
+        function testStatementsCombination(statements, combo, chestColors, layout, treasurePlan) {
+            const num = combo.length; let colorCounts = {}; for(let c of colors) colorCounts[c] = { M: 0 };
+            for(let i = 0; i < num; i++) if (combo[i] === 'M') colorCounts[chestColors[i]].M++;
+            const presentColors = [...new Set(chestColors)]; const candidateTreasures = mapTreasuresToRoles(combo, treasurePlan);
 
             for (let i = 0; i < num; i++) {
-                const stmt = statements[i];
-                const assumesTruth = (combo[i] === 'T');
-                let isTrue = false;
-
+                const stmt = statements[i]; const assumesTruth = (combo[i] === 'T'); let isTrue = false;
                 switch(stmt.type) {
-                    case 'GLOBAL_M_COUNT':
-                        let globalMCount = combo.filter(r => r === 'M').length;
-                        isTrue = evaluateOp(globalMCount, stmt.op, stmt.count); 
-                        break;
-                    case 'GLOBAL_M_PARITY':
-                        let globalMParity = combo.filter(r => r === 'M').length;
-                        isTrue = (globalMParity % 2 === stmt.parity);
-                        break;
-                    case 'COLOR_M': 
-                    case 'GROUP_M_COUNT':
-                        let gCount = (stmt.type === 'COLOR_M') ? colorCounts[stmt.color].M : stmt.group.filter(idx => combo[idx] === 'M').length;
-                        isTrue = evaluateOp(gCount, stmt.op, stmt.count); 
-                        break;
-                    case 'COLOR_PARITY':
-                        isTrue = (colorCounts[stmt.color].M % 2 === stmt.parity);
-                        break;
-                    case 'COLOR_CMP': 
-                        isTrue = evaluateOp(colorCounts[stmt.c1].M, stmt.op, colorCounts[stmt.c2].M); 
-                        break;
-                    case 'NOT_COLOR_M':
-                        let notColorM = combo.filter((role, idx) => role === 'M' && chestColors[idx] !== stmt.color).length;
-                        isTrue = stmt.hasMimic ? (notColorM > 0) : (notColorM === 0);
-                        break;
-                    case 'COLOR_EXTREME':
-                        let allM = presentColors.map(col => colorCounts[col].M);
-                        let extremeVal = stmt.isMax ? Math.max(...allM) : Math.min(...allM);
-                        isTrue = (colorCounts[stmt.color].M === extremeVal);
-                        break;
-                    case 'GROUP_M_EXIST':
-                        let gmCount = stmt.group.filter(idx => combo[idx] === 'M').length;
-                        isTrue = stmt.hasMimic ? (gmCount > 0) : (gmCount === 0);
-                        break;
-                    case 'ROW_CMP':
-                        let r1M = 0; layout.pos.forEach(([r, c], idx) => { if(r === stmt.r1 && combo[idx]==='M') r1M++; });
-                        let r2M = 0; layout.pos.forEach(([r, c], idx) => { if(r === stmt.r2 && combo[idx]==='M') r2M++; });
-                        isTrue = evaluateOp(r1M, stmt.op, r2M);
-                        break;
-                    case 'ALL_DIFF_ROWS':
-                        let mRows = new Set();
-                        combo.forEach((r, idx) => { if(r === 'M') mRows.add(layout.pos[idx][0]); });
-                        let totalComboM = combo.filter(r => r === 'M').length;
-                        isTrue = stmt.diff ? (mRows.size === totalComboM) : (mRows.size < totalComboM);
-                        break;
-                    case 'ADJACENCY_M':
-                        isTrue = (checkAdjacency(combo, layout) === stmt.hasAdj);
-                        break;
+                    case 'GLOBAL_M_COUNT': isTrue = evaluateOp(combo.filter(r => r === 'M').length, stmt.op, stmt.count); break;
+                    case 'GLOBAL_M_EXIST': isTrue = stmt.hasMimic ? combo.some(r => r === 'M') : combo.every(r => r !== 'M'); break;
+                    case 'GLOBAL_M_PARITY': isTrue = (combo.filter(r => r === 'M').length % 2 === stmt.parity); break;
+                    case 'COLOR_M': case 'GROUP_M_COUNT': let gCount = (stmt.type === 'COLOR_M') ? colorCounts[stmt.color].M : stmt.group.filter(idx => combo[idx] === 'M').length; isTrue = evaluateOp(gCount, stmt.op, stmt.count); break;
+                    case 'COLOR_PARITY': isTrue = (colorCounts[stmt.color].M % 2 === stmt.parity); break;
+                    case 'COLOR_CMP': isTrue = evaluateOp(colorCounts[stmt.c1].M, stmt.op, colorCounts[stmt.c2].M); break;
+                    case 'NOT_COLOR_M': let notColorM = combo.filter((role, idx) => role === 'M' && chestColors[idx] !== stmt.color).length; isTrue = stmt.hasMimic ? (notColorM > 0) : (notColorM === 0); break;
+                    case 'COLOR_EXTREME': let allM = presentColors.map(col => colorCounts[col].M); let extremeVal = stmt.isMax ? Math.max(...allM) : Math.min(...allM); isTrue = (colorCounts[stmt.color].M === extremeVal); break;
+                    case 'GROUP_M_EXIST': let gmCount = stmt.group.filter(idx => combo[idx] === 'M').length; isTrue = stmt.hasMimic ? (gmCount > 0) : (gmCount === 0); break;
+                    case 'ITEM_GROUP_EXIST': const itemCount = stmt.group.filter(idx => candidateTreasures[idx] === stmt.item).length; isTrue = stmt.hasItem ? itemCount > 0 : itemCount === 0; break;
+                    case 'ROW_CMP': let r1M = 0; let r2M = 0; layout.pos.forEach(([r, c], idx) => { if(r === stmt.r1 && combo[idx]==='M') r1M++; if(r === stmt.r2 && combo[idx]==='M') r2M++; }); isTrue = evaluateOp(r1M, stmt.op, r2M); break;
+                    case 'ALL_DIFF_ROWS': let mRows = new Set(); combo.forEach((r, idx) => { if(r === 'M') mRows.add(layout.pos[idx][0]); }); isTrue = stmt.diff ? (mRows.size === combo.filter(r => r === 'M').length) : (mRows.size < combo.filter(r => r === 'M').length); break;
+                    case 'ALL_DIFF_COLS': let mCols = new Set(); combo.forEach((r, idx) => { if(r === 'M') mCols.add(layout.pos[idx][1]); }); isTrue = stmt.diff ? (mCols.size === combo.filter(r => r === 'M').length) : (mCols.size < combo.filter(r => r === 'M').length); break;
+                    case 'ADJACENCY_M': isTrue = (checkAdjacency(combo, layout) === stmt.hasAdj); break;
                 }
                 if (assumesTruth !== isTrue) return false;
             }
             return true;
         }
 
-        function weightedRandomSelect(statements, historyTags) {
+        function weightedRandomSelect(statements, historyTags, confirmedIndices, totalChests, isBoss) {
             let totalWeight = 0;
+            let bossFactor = isBoss ? Math.min(0.8, 0.15 * Math.floor(currentFloor / 4)) : 0; // Correlation reduction
+            
             let weightedStmts = statements.map(stmt => {
                 let w = stmt.weightBase || 10;
-                if (stmt.tags && historyTags.length > 0) {
-                    stmt.tags.forEach(tag => {
-                        if (historyTags.includes(tag)) w += 5; 
-                    });
+                const certainty = stmt.certaintyIndices || [];
+                if (stmt.type === 'ITEM_GROUP_EXIST') {
+                    const confirmedOverlap = (stmt.group || []).filter(idx => confirmedIndices.has(idx)).length;
+                    if (confirmedOverlap > 0) w *= Math.min(2.4, 1.8 + (confirmedOverlap - 1) * 0.2);
                 }
-                totalWeight += w;
-                return { stmt, weight: w };
-            });
-
-            let r = Math.random() * totalWeight;
-            for (let ws of weightedStmts) {
-                r -= ws.weight;
-                if (r <= 0) return ws.stmt;
-            }
-            return weightedStmts[weightedStmts.length - 1].stmt;
-        }
-
-        function generatePuzzle(numChests, numMimics) {
-            let maxAttempts = 500;
-            let layout = getGridLayout(numChests);
-            
-            for (let attempt = 0; attempt < maxAttempts; attempt++) {
-                let actualRoles = generateRoles(numChests, numMimics);
-                let actualColors = getRandomColors(numChests);
-                let selectedStatements = [];
-                let historyTags = [];
-
-                let success = true;
-                for (let i = 0; i < numChests; i++) {
-                    let possible = generatePossibleStatements(i, actualRoles, actualColors, layout);
-                    if (possible.length === 0) { success = false; break; }
-                    let picked = weightedRandomSelect(possible, historyTags);
-                    selectedStatements.push(picked);
-                    if (picked.tags) {
-                        picked.tags.forEach(t => { if(!historyTags.includes(t)) historyTags.push(t); });
-                    }
+                if (stmt.type !== 'ITEM_GROUP_EXIST' && !certainty.length && stmt.tags && historyTags.length > 0) {
+                    stmt.tags.forEach(tag => { if (historyTags.includes(tag)) w += 5; });
                 }
-
-                if (!success || selectedStatements.length !== numChests) continue;
-
-                let validCount = 0;
-                let maxM = Math.max(1, Math.floor((numChests - 1) / 2));
-                let combos = isRandomMode ? getAllCombinations(numChests, maxM) : getCombinations(numChests, numMimics);
+                if (certainty.length) {
+                    const newlyConfirmed = certainty.filter(idx => !confirmedIndices.has(idx)).length;
+                    const overHalf = Math.max(0, (confirmedIndices.size + newlyConfirmed) - Math.max(1, totalChests / 2));
+                    w *= (1 / (1 + 0.35 * newlyConfirmed)) * Math.max(0.03, Math.exp(-5 * Math.pow(overHalf / Math.max(1, totalChests * 0.2), 2)));
+                }
                 
-                for (let combo of combos) {
-                    if (testStatementsCombination(selectedStatements, combo, actualColors, layout)) validCount++;
-                    if (validCount > 1) break;
-                }
-
-                if (validCount === 1) {
-                    return { roles: actualRoles, statements: selectedStatements, colors: actualColors };
-                }
+                // Apply Boss rules (flattens probabilities)
+                if (bossFactor > 0) w = w * (1 - bossFactor) + 10 * bossFactor;
+                
+                totalWeight += w; return { stmt, weight: w };
+            });
+            const itemWeight = weightedStmts.filter(ws => ws.stmt.type === 'ITEM_GROUP_EXIST').reduce((sum, ws) => sum + ws.weight, 0);
+            const otherWeight = weightedStmts.filter(ws => ws.stmt.type !== 'ITEM_GROUP_EXIST').reduce((sum, ws) => sum + ws.weight, 0);
+            const itemWeightCap = otherWeight * 0.05;
+            if (itemWeight > itemWeightCap && itemWeight > 0) {
+                const scale = itemWeightCap / itemWeight;
+                weightedStmts.forEach(ws => { if (ws.stmt.type === 'ITEM_GROUP_EXIST') ws.weight *= scale; });
+                totalWeight = weightedStmts.reduce((sum, ws) => sum + ws.weight, 0);
             }
-            return null;
+            let r = Math.random() * totalWeight;
+            for (let ws of weightedStmts) { r -= ws.weight; if (r <= 0) return ws.stmt; }
+            return weightedStmts[weightedStmts.length - 1].stmt;
         }
 
         function getCombinations(n, m) {
             let results = [];
             function recurse(arr, onesLeft) {
-                if (arr.length === n) {
-                    if (onesLeft === 0) results.push([...arr]);
-                    return;
-                }
-                if (onesLeft > 0) {
-                    arr.push('M');
-                    recurse(arr, onesLeft - 1);
-                    arr.pop();
-                }
-                if (n - arr.length > onesLeft) {
-                    arr.push('T');
-                    recurse(arr, onesLeft);
-                    arr.pop();
-                }
+                if (arr.length === n) { if (onesLeft === 0) results.push([...arr]); return; }
+                if (onesLeft > 0) { arr.push('M'); recurse(arr, onesLeft - 1); arr.pop(); }
+                if (n - arr.length > onesLeft) { arr.push('T'); recurse(arr, onesLeft); arr.pop(); }
             }
-            recurse([], m);
-            return results;
+            recurse([], m); return results;
         }
-
         function getAllCombinations(n, maxM) {
-            let results = [];
-            for (let m = 1; m <= maxM; m++) {
-                results.push(...getCombinations(n, m));
-            }
-            return results;
+            let results = []; for (let m = 1; m <= maxM; m++) results.push(...getCombinations(n, m)); return results;
         }
 
-        function initGame() {
-            let numChests = parseInt(sliderChests.value);
-            isRandomMode = chkRandom.checked;
-            let numMimics = 1;
-
-            if (isRandomMode) {
-                let maxMimics = Math.max(1, Math.floor((numChests - 1) / 2));
-                numMimics = Math.floor(Math.random() * maxMimics) + 1;
-            } else {
-                numMimics = parseInt(sliderMimics.value);
-            }
-
-            let rawTreasures = inputTreasures.value.split(',').map(s => s.trim()).filter(s => s.length > 0);
-            if (rawTreasures.length === 0) {
-                rawTreasures = ['보물'];
-            }
-
-            treasureColorMap = {};
-            let shuffledPalette = [...treasurePalette].sort(() => 0.5 - Math.random());
-            rawTreasures.forEach((tr, idx) => {
-                treasureColorMap[tr] = shuffledPalette[idx % shuffledPalette.length];
-            });
-
-            genWarning.classList.remove('invisible');
-            statusMsg.innerText = "맵 생성 중...";
-            isGameOver = false;
-            totalOpened = 0;
-            totalTrueChests = numChests - numMimics;
-
-            setTimeout(() => {
-                let puzzle = generatePuzzle(numChests, numMimics);
-                if (!puzzle) {
-                    initGame();
-                    return;
-                }
-
-                let trueChestIndices = [];
-                puzzle.roles.forEach((r, idx) => { if (r === 'T') trueChestIndices.push(idx); });
+        function generatePuzzle(numChests, numMimics, rawTreasures, isBoss) {
+            let layout = getGridLayout(numChests);
+            for (let attempt = 0; attempt < 500; attempt++) {
+                let actualRoles = generateRoles(numChests, numMimics); let actualColors = getRandomColors(numChests);
+                const treasurePlan = buildTreasurePlan(numChests, rawTreasures); const actualTreasures = mapTreasuresToRoles(actualRoles, treasurePlan);
+                let selectedStatements = []; let historyTags = []; let confirmedIndices = new Set(); let success = true;
                 
-                let assignedTreasures = {};
-                let shuffledTrue = [...trueChestIndices].sort(() => 0.5 - Math.random());
-                
-                let itemIdx = 0;
-                rawTreasures.forEach(tr => {
-                    if (itemIdx < shuffledTrue.length) {
-                        assignedTreasures[shuffledTrue[itemIdx]] = tr;
-                        itemIdx++;
-                    }
-                });
-
-                for (let i = itemIdx; i < shuffledTrue.length; i++) {
-                    let randTr = rawTreasures[Math.floor(Math.random() * rawTreasures.length)];
-                    assignedTreasures[shuffledTrue[i]] = randTr;
-                }
-
-                currentTreasuresSummary = {};
-                rawTreasures.forEach(tr => currentTreasuresSummary[tr] = 0);
-                Object.values(assignedTreasures).forEach(tr => {
-                    if (currentTreasuresSummary[tr] !== undefined) currentTreasuresSummary[tr]++;
-                    else currentTreasuresSummary[tr] = 1;
-                });
-
-                chestsData = [];
                 for (let i = 0; i < numChests; i++) {
-                    chestsData.push({
-                        role: puzzle.roles[i],
-                        statement: puzzle.statements[i].text,
-                        color: puzzle.colors[i],
-                        treasure: puzzle.roles[i] === 'T' ? assignedTreasures[i] : '미믹 (꽝)',
-                        isOpen: false,
-                        mark: null,
-                        memo: []
-                    });
+                    const candidatePools = generatePossibleStatements(i, actualRoles, actualColors, layout, actualTreasures);
+                    const possible = actualRoles[i] === 'T' ? candidatePools.truthCandidates : candidatePools.falseCandidates;
+                    if (possible.length === 0) { success = false; break; }
+                    let picked = weightedRandomSelect(possible, historyTags, confirmedIndices, numChests, isBoss);
+                    selectedStatements.push(picked);
+                    (picked.certaintyIndices || []).forEach(idx => confirmedIndices.add(idx));
+                    if (picked.tags) picked.tags.forEach(t => { if(!historyTags.includes(t)) historyTags.push(t); });
                 }
+                if (!success || selectedStatements.length !== numChests) continue;
 
-                infoTotalChests.innerText = `${numChests}개`;
-                infoMimics.innerText = isRandomMode ? '? 마리' : `${numMimics}마리`;
-                infoTreasuresList.innerHTML = '';
-                Object.entries(currentTreasuresSummary).forEach(([trName, count]) => {
-                    const tCol = treasureColorMap[trName] || treasurePalette[0];
-                    const row = document.createElement('div');
-                    row.className = "flex justify-between items-center bg-slate-50 px-2.5 py-1.5 rounded border border-slate-100";
-                    row.innerHTML = `<span class="font-bold ${tCol.text}">• ${trName}</span><span class="font-extrabold text-slate-800">${count}개</span>`;
-                    infoTreasuresList.appendChild(row);
-                });
-
-                genWarning.classList.add('invisible');
-                gameplayControls.classList.remove('hidden');
-                gameplayPlaceholder.classList.add('hidden');
-                statusMsg.innerText = "단서를 종합해 추리를 시작하세요!";
-                statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-amber-700 drop-shadow-sm";
-                
-                settingsSummary.innerText = `상자 ${numChests}개, 미믹 ${isRandomMode ? '?' : numMimics}마리`;
-                container.className = "flex flex-col gap-4 items-center mx-auto mb-6 w-full";
-                renderChests();
-            }, 50);
+                let validCount = 0; let maxM = Math.max(1, Math.floor((numChests - 1) / 2));
+                let combos = isRandomMode ? getAllCombinations(numChests, maxM) : getCombinations(numChests, numMimics);
+                for (let combo of combos) {
+                    if (testStatementsCombination(selectedStatements, combo, actualColors, layout, treasurePlan)) validCount++;
+                    if (validCount > 1) break;
+                }
+                if (validCount === 1) return { roles: actualRoles, statements: selectedStatements, colors: actualColors, treasures: actualTreasures };
+            }
+            return null;
         }
 
+        // --- Render UI ---
         function getChestSvg(colorKey, isOpen, isMimic, treasureName) {
             const hex = colorHex[colorKey] || '#eab308';
             if (!isOpen) {
@@ -853,22 +1032,16 @@
                     return `
                     <svg width="55" height="55" viewBox="0 0 100 100" class="chest-bounce">
                         <path d="M 10 40 Q 50 -10 90 40 Z" fill="#475569" stroke="#334155" stroke-width="4"/>
-                        <circle cx="30" cy="40" r="10" fill="#fbbf24"/>
-                        <circle cx="50" cy="35" r="12" fill="#38bdf8"/>
-                        <circle cx="70" cy="40" r="10" fill="#f472b6"/>
+                        <circle cx="30" cy="40" r="10" fill="#fbbf24"/><circle cx="50" cy="35" r="12" fill="#38bdf8"/><circle cx="70" cy="40" r="10" fill="#f472b6"/>
                         <rect x="10" y="40" width="80" height="50" rx="5" fill="${hex}" stroke="#334155" stroke-width="4"/>
-                        <rect x="15" y="40" width="10" height="50" fill="#334155" opacity="0.5"/>
-                        <rect x="75" y="40" width="10" height="50" fill="#334155" opacity="0.5"/>
+                        <rect x="15" y="40" width="10" height="50" fill="#334155" opacity="0.5"/><rect x="75" y="40" width="10" height="50" fill="#334155" opacity="0.5"/>
                     </svg>`;
                 } else {
                     return `
                     <svg width="55" height="55" viewBox="0 0 100 100" class="mimic-shake">
                         <path d="M 10 40 Q 50 -20 90 40 Z" fill="#7f1d1d" stroke="#334155" stroke-width="4"/>
-                        <polygon points="15,40 25,20 35,40" fill="#f8fafc"/>
-                        <polygon points="35,40 50,15 65,40" fill="#f8fafc"/>
-                        <polygon points="65,40 75,20 85,40" fill="#f8fafc"/>
-                        <circle cx="35" cy="15" r="5" fill="#ef4444" class="animate-ping"/>
-                        <circle cx="65" cy="15" r="5" fill="#ef4444" class="animate-ping"/>
+                        <polygon points="15,40 25,20 35,40" fill="#f8fafc"/><polygon points="35,40 50,15 65,40" fill="#f8fafc"/><polygon points="65,40 75,20 85,40" fill="#f8fafc"/>
+                        <circle cx="35" cy="15" r="5" fill="#ef4444" class="animate-ping"/><circle cx="65" cy="15" r="5" fill="#ef4444" class="animate-ping"/>
                         <rect x="10" y="40" width="80" height="50" rx="5" fill="${hex}" stroke="#334155" stroke-width="4"/>
                         <path d="M 40 40 Q 50 80 60 40 Z" fill="#ec4899"/>
                     </svg>`;
@@ -878,43 +1051,30 @@
 
         function renderChests() {
             container.innerHTML = '';
-            
-            const numChests = chestsData.length;
-            const layout = getGridLayout(numChests);
-            const rows = layout.rows;
-
-            const rowGroups = Array.from({length: rows}, () => []);
-            layout.pos.forEach(([r, c], idx) => {
-                rowGroups[r].push(idx);
-            });
+            const numChests = chestsData.length; const layout = getGridLayout(numChests); const rows = layout.rows;
+            const rowGroups = Array.from({length: rows}, () => []); layout.pos.forEach(([r, c], idx) => { rowGroups[r].push(idx); });
 
             for (let r = 0; r < rows; r++) {
                 if (rowGroups[r].length === 0) continue;
-
-                const rowContainer = document.createElement('div');
-                rowContainer.className = "flex justify-center items-start gap-3 md:gap-5 w-full";
-                
+                const rowContainer = document.createElement('div'); rowContainer.className = "flex justify-center items-start gap-3 md:gap-5 w-full flex-wrap";
                 rowGroups[r].sort((a, b) => layout.pos[a][1] - layout.pos[b][1]);
 
                 for (let idx of rowGroups[r]) {
                     const chest = chestsData[idx];
-                    const chestWrap = document.createElement('div');
-                    chestWrap.className = `flex flex-col items-center w-28 md:w-36 relative mt-1`;
-
-                    chestWrap.onmouseenter = () => { hoveredChestIdx = idx; };
-                    chestWrap.onmouseleave = () => { if (hoveredChestIdx === idx) hoveredChestIdx = null; };
+                    const chestWrap = document.createElement('div'); chestWrap.className = `flex flex-col items-center w-28 md:w-36 relative mt-1`;
+                    chestWrap.onmouseenter = () => { hoveredChestIdx = idx; }; chestWrap.onmouseleave = () => { if (hoveredChestIdx === idx) hoveredChestIdx = null; };
 
                     const coord = getCoord(idx, layout);
-                    const coordBadge = document.createElement('div');
-                    coordBadge.className = "absolute -top-3 -left-1 md:-left-2 bg-slate-800 text-amber-400 font-extrabold px-1.5 py-0.5 rounded border border-slate-700 shadow-sm z-10 text-[10px]";
-                    coordBadge.innerText = coord.name;
-                    chestWrap.appendChild(coordBadge);
+                    const coordBadge = document.createElement('div'); coordBadge.className = "absolute -top-3 -left-1 md:-left-2 bg-indigo-900 text-amber-400 font-extrabold px-1.5 py-0.5 rounded border border-indigo-700 shadow-sm z-10 text-[10px]";
+                    coordBadge.innerText = coord.name; chestWrap.appendChild(coordBadge);
 
                     const bubble = document.createElement('div');
                     bubble.className = `relative bg-white border ${chest.isOpen && chest.role === 'M' ? 'border-red-300 text-red-600' : chest.isOpen && chest.role === 'T' ? 'border-emerald-300 text-emerald-700' : 'border-slate-200 text-slate-700'} 
                                         text-[11px] md:text-xs px-2.5 py-1.5 rounded-xl mb-1.5 w-full text-center shadow-sm bubble-arrow font-medium break-keep h-[58px] md:h-[68px] flex items-center justify-center leading-snug overflow-hidden`;
                     
-                    bubble.innerHTML = `<span>${chest.statement}</span>`;
+                    if (chest.isSleeping) bubble.innerHTML = `<span class="text-xl font-bold tracking-widest text-slate-400 animate-pulse">zzZ</span>`;
+                    else bubble.innerHTML = `<span>${chest.statement}</span>`;
+                    
                     chestWrap.appendChild(bubble);
 
                     let boxShadows = [];
@@ -926,289 +1086,187 @@
                         const memoColorsObj = { 1: '#ec4899', 2: '#a855f7', 3: '#06b6d4', 4: '#f97316', 5: '#84cc16' };
                         let memoOffset = chest.mark ? 6 : 3;
                         let sortedMemos = [...chest.memo].sort((a,b) => a - b);
-                        sortedMemos.forEach(m => {
-                            boxShadows.push(`0 0 0 ${memoOffset}px ${memoColorsObj[m]}`);
-                            memoOffset += 3;
-                        });
+                        sortedMemos.forEach(m => { boxShadows.push(`0 0 0 ${memoOffset}px ${memoColorsObj[m]}`); memoOffset += 3; });
                     }
 
                     let openedBgClass = 'bg-slate-100';
                     if (chest.isOpen) {
-                        if (chest.role === 'M') {
-                            openedBgClass = 'bg-red-100';
-                        } else {
-                            const tCol = treasureColorMap[chest.treasure];
-                            openedBgClass = tCol ? tCol.bg : 'bg-emerald-100';
-                        }
+                        if (chest.role === 'M') openedBgClass = 'bg-red-100';
+                        else { const tCol = treasureColorMap[chest.treasure]; openedBgClass = tCol ? tCol.bg : 'bg-emerald-100'; }
                     }
 
                     const btnChest = document.createElement('button');
-                    btnChest.className = `relative flex items-center justify-center rounded-xl p-1 transition-all duration-300 
-                                         ${chest.isOpen ? 'cursor-default' : 'hover:-translate-y-1.5 cursor-pointer'} 
-                                         ${openedBgClass} ${!chest.isOpen ? 'border border-slate-200' : ''}`;
-                    
-                    if (!chest.isOpen && boxShadows.length > 0) {
-                        btnChest.setAttribute("style", `box-shadow: ${boxShadows.join(', ')};`);
-                    }
-
+                    btnChest.className = `relative flex items-center justify-center rounded-xl p-1 transition-all duration-300 ${chest.isOpen ? 'cursor-default' : 'hover:-translate-y-1.5 cursor-pointer'} ${openedBgClass} ${!chest.isOpen ? 'border border-slate-200' : ''}`;
+                    if (!chest.isOpen && boxShadows.length > 0) btnChest.setAttribute("style", `box-shadow: ${boxShadows.join(', ')};`);
                     btnChest.innerHTML = getChestSvg(chest.color, chest.isOpen, chest.role === 'M', chest.treasure);
-                    if (!chest.isOpen) {
-                        btnChest.onclick = () => openChest(idx);
-                    }
+                    
+                    if (!chest.isOpen) btnChest.onclick = () => openChest(idx);
                     chestWrap.appendChild(btnChest);
 
-                    const actionWrap = document.createElement('div');
-                    actionWrap.className = "mt-2 w-full max-w-[120px] md:max-w-[140px] flex flex-col items-center gap-1";
+                    const actionWrap = document.createElement('div'); actionWrap.className = "mt-2 w-full max-w-[120px] md:max-w-[140px] flex flex-col items-center gap-1";
                     
                     if (!chest.isOpen) {
-                        const markGroup = document.createElement('div');
-                        markGroup.className = "flex w-full bg-slate-100 rounded border border-slate-200 overflow-hidden shadow-2xs";
+                        const markGroup = document.createElement('div'); markGroup.className = "flex w-full bg-slate-100 rounded border border-slate-200 overflow-hidden shadow-2xs";
                         const marks = [ { id: 'O', icon: '⭕' }, { id: 'X', icon: '❌' }, { id: '?', icon: '❓' } ];
                         marks.forEach(m => {
                             const btn = document.createElement('button');
-                            const isActive = chest.mark === m.id;
-                            btn.className = `flex-1 py-1 flex justify-center items-center text-xs border-r border-slate-200 last:border-0 transition-colors ${isActive ? 'bg-slate-300 font-bold opacity-100' : 'opacity-40 hover:opacity-100 hover:bg-slate-200'}`;
-                            btn.innerText = m.icon;
-                            btn.onclick = () => toggleMark(idx, m.id);
-                            markGroup.appendChild(btn);
+                            btn.className = `flex-1 py-1 flex justify-center items-center text-xs border-r border-slate-200 last:border-0 transition-colors ${chest.mark === m.id ? 'bg-slate-300 font-bold opacity-100' : 'opacity-40 hover:opacity-100 hover:bg-slate-200'}`;
+                            btn.innerText = m.icon; btn.onclick = () => toggleMark(idx, m.id); markGroup.appendChild(btn);
                         });
                         actionWrap.appendChild(markGroup);
 
-                        const memoBgColors = {
-                            1: 'bg-pink-500 text-white border-pink-400',
-                            2: 'bg-purple-500 text-white border-purple-400',
-                            3: 'bg-cyan-500 text-white border-cyan-400',
-                            4: 'bg-orange-500 text-white border-orange-400',
-                            5: 'bg-lime-500 text-white border-lime-400'
-                        };
-                        const memoHoverColors = {
-                            1: 'hover:bg-pink-500 hover:text-white',
-                            2: 'hover:bg-purple-500 hover:text-white',
-                            3: 'hover:bg-cyan-500 hover:text-white',
-                            4: 'hover:bg-orange-500 hover:text-white',
-                            5: 'hover:bg-lime-500 hover:text-white'
-                        };
-
-                        const memoGroup = document.createElement('div');
-                        memoGroup.className = "flex w-full bg-slate-100 rounded border border-slate-200 overflow-hidden shadow-2xs";
+                        const memoBgColors = { 1: 'bg-pink-500 text-white border-pink-400', 2: 'bg-purple-500 text-white border-purple-400', 3: 'bg-cyan-500 text-white border-cyan-400', 4: 'bg-orange-500 text-white border-orange-400', 5: 'bg-lime-500 text-white border-lime-400' };
+                        const memoHoverColors = { 1: 'hover:bg-pink-500 hover:text-white', 2: 'hover:bg-purple-500 hover:text-white', 3: 'hover:bg-cyan-500 hover:text-white', 4: 'hover:bg-orange-500 hover:text-white', 5: 'hover:bg-lime-500 hover:text-white' };
+                        const memoGroup = document.createElement('div'); memoGroup.className = "flex w-full bg-slate-100 rounded border border-slate-200 overflow-hidden shadow-2xs";
                         [1, 2, 3, 4, 5].forEach(num => {
-                            const btn = document.createElement('button');
-                            const isActive = chest.memo.includes(num);
+                            const btn = document.createElement('button'); const isActive = chest.memo.includes(num);
                             btn.className = `flex-1 py-0.5 flex justify-center items-center text-[10px] font-bold border-r border-slate-200 last:border-0 transition-colors ${isActive ? memoBgColors[num] : `text-slate-500 ${memoHoverColors[num]}`}`;
-                            btn.innerText = num;
-                            btn.onclick = () => toggleMemo(idx, num);
-                            memoGroup.appendChild(btn);
+                            btn.innerText = num; btn.onclick = () => toggleMemo(idx, num); memoGroup.appendChild(btn);
                         });
                         actionWrap.appendChild(memoGroup);
-
                     } else {
                         const tCol = chest.role === 'M' ? { text: 'text-red-600' } : (treasureColorMap[chest.treasure] || { text: 'text-emerald-700' });
-                        const resultBadge = document.createElement('div');
-                        resultBadge.className = `text-[11px] font-bold py-1 px-2.5 rounded-full bg-white shadow-xs ${tCol.text}`;
-                        resultBadge.innerText = chest.role === 'M' ? '미믹!' : chest.treasure;
-                        actionWrap.appendChild(resultBadge);
+                        const resultBadge = document.createElement('div'); resultBadge.className = `text-[11px] font-bold py-1 px-2.5 rounded-full bg-white shadow-xs ${tCol.text}`;
+                        resultBadge.innerText = chest.role === 'M' ? '미믹!' : chest.treasure; actionWrap.appendChild(resultBadge);
                     }
-
-                    chestWrap.appendChild(actionWrap);
-                    rowContainer.appendChild(chestWrap);
+                    chestWrap.appendChild(actionWrap); rowContainer.appendChild(chestWrap);
                 }
                 container.appendChild(rowContainer);
             }
         }
 
-        window.addEventListener('keydown', (e) => {
-            if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
-
-            if (e.key.toLowerCase() === 'r') {
-                e.preventDefault();
-                e.stopPropagation();
-                initGame();
-                return;
-            }
-
-            if (hoveredChestIdx !== null && !isGameOver && !chestsData[hoveredChestIdx].isOpen) {
-                const key = e.key.toLowerCase();
-                if (key === 'q') {
-                    e.preventDefault();
-                    toggleMark(hoveredChestIdx, 'O');
-                } else if (key === 'w') {
-                    e.preventDefault();
-                    toggleMark(hoveredChestIdx, 'X');
-                } else if (key === 'e') {
-                    e.preventDefault();
-                    toggleMark(hoveredChestIdx, '?');
-                } else if (['1', '2', '3', '4', '5'].includes(e.key)) {
-                    e.preventDefault();
-                    toggleMemo(hoveredChestIdx, parseInt(e.key));
-                }
-            }
-        });
-
-        function toggleMark(idx, markType) {
-            if (isGameOver || chestsData[idx].isOpen) return;
-            chestsData[idx].mark = (chestsData[idx].mark === markType) ? null : markType;
-            renderChests();
-        }
-
+        // --- User Interaction ---
+        function toggleMark(idx, markType) { if (isGameOver || chestsData[idx].isOpen) return; chestsData[idx].mark = (chestsData[idx].mark === markType) ? null : markType; renderChests(); if(window.autoSaveToCloud) window.autoSaveToCloud(); }
         function toggleMemo(idx, num) {
             if (isGameOver || chestsData[idx].isOpen) return;
-            const memoArr = chestsData[idx].memo;
-            const numIdx = memoArr.indexOf(num);
-            if (numIdx > -1) {
-                memoArr.splice(numIdx, 1);
-            } else {
-                memoArr.push(num);
-            }
-            renderChests();
+            const memoArr = chestsData[idx].memo; const numIdx = memoArr.indexOf(num);
+            if (numIdx > -1) memoArr.splice(numIdx, 1); else memoArr.push(num); renderChests(); if(window.autoSaveToCloud) window.autoSaveToCloud();
         }
 
         function openChest(idx) {
             if (isGameOver || chestsData[idx].isOpen) return;
-            if (chestsData[idx].mark === 'X') {
-                statusMsg.innerText = "미믹으로 표시한 상자입니다! 마크를 해제해야 열 수 있습니다.";
-                statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-amber-600 drop-shadow-sm";
+            
+            if (chestsData[idx].isSleeping) {
+                if (chestsData[idx].mark === 'X') {
+                    statusMsg.innerText = "미믹으로 표시한 상자입니다! 마크를 해제해야 잠을 깨울 수 있습니다.";
+                    return;
+                }
+                if (chestsData[idx].role === 'M') {
+                    chestsData[idx].isOpen = true; gameOver(false);
+                    statusMsg.innerText = "잠자는 미믹을 건드렸습니다! 즉시 게임 오버... ☠️";
+                    statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-red-600 drop-shadow-sm scale-105 animate-pulse";
+                } else {
+                    chestsData[idx].isSleeping = false;
+                    chestsData[idx].statement = chestsData[idx].originalStatement;
+                    statusMsg.innerText = "상자가 깨어나 발언을 시작합니다.";
+                    statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-emerald-600 drop-shadow-sm";
+                    renderChests();
+                }
                 return;
             }
 
+            if (chestsData[idx].mark === 'X') { statusMsg.innerText = "미믹으로 표시한 상자입니다! 해제 후 여세요."; return; }
             chestsData[idx].isOpen = true;
 
-            if (chestsData[idx].role === 'M') {
-                gameOver(false);
-            } else {
+            if (chestsData[idx].role === 'M') { gameOver(false); } 
+            else {
                 totalOpened++;
-                if (totalOpened === totalTrueChests) {
-                    gameOver(true);
-                } else {
-                    if (isRandomMode) {
-                        statusMsg.innerText = `진짜를 찾았습니다! (${chestsData[idx].treasure}) 계속해서 추리하세요.`;
-                        statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-emerald-600 drop-shadow-sm";
-                    } else {
-                        statusMsg.innerText = `진짜를 찾았습니다! (${chestsData[idx].treasure}) 남은 진짜 보물: ${totalTrueChests - totalOpened}개`;
-                        statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-emerald-600 drop-shadow-sm";
-                    }
+                if (totalOpened === totalTrueChests) { gameOver(true); } 
+                else {
+                    statusMsg.innerText = isRandomMode ? `진짜를 찾았습니다! (${chestsData[idx].treasure}) 계속 추리하세요.` : `진짜를 찾았습니다! 남은 진짜 보물: ${totalTrueChests - totalOpened}개`;
+                    statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-emerald-600 drop-shadow-sm";
                 }
             }
-            renderChests();
+            renderChests(); if(window.autoSaveToCloud) window.autoSaveToCloud();
         }
 
         function gameOver(isWin) {
             isGameOver = true;
-            actionControls.classList.remove('hidden');
-            btnReveal.classList.add('hidden');
-            
             if (isWin) {
-                statusMsg.innerText = "축하합니다! 모든 진짜 보물을 찾아냈습니다! 🎉";
-                statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-amber-600 drop-shadow-sm scale-105 transition-transform";
+                isFloorCleared = true;
+                statusMsg.innerText = "층 클리어! 모든 진짜 보물을 찾아냈습니다! 🎉";
+                statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-indigo-600 drop-shadow-sm scale-105 transition-transform";
+                btnNextFloor.classList.remove('hidden'); btnRestart.classList.add('hidden');
             } else {
+                isFloorCleared = false;
                 statusMsg.innerText = "미믹에게 먹혔습니다! 게임 오버... ☠️";
                 statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-red-600 drop-shadow-sm scale-105 transition-transform animate-pulse";
-                chestsData.forEach(c => { if(c.role === 'M') c.isOpen = true; });
+                btnRestart.classList.remove('hidden'); btnNextFloor.classList.add('hidden');
             }
+            
+            // 승패에 관계없이 모든 상자의 상태를 열림으로 강제 변환하여 정답 공개
+            chestsData.forEach(c => {
+                c.isSleeping = false; // 잠자는 상자도 깨움
+                c.isOpen = true;
+            });
+            renderChests(); if(window.autoSaveToCloud) window.autoSaveToCloud();
         }
 
-        chkRandom.addEventListener('change', (e) => {
-            if (e.target.checked) {
-                sliderMimics.disabled = true;
-                sliderMimics.classList.add('opacity-40', 'cursor-not-allowed');
-                document.getElementById('mimics-controls-wrap').style.opacity = '0.4';
-                valMimics.innerText = "?";
-            } else {
-                sliderMimics.disabled = false;
-                sliderMimics.classList.remove('opacity-40', 'cursor-not-allowed');
-                document.getElementById('mimics-controls-wrap').style.opacity = '1';
-                valMimics.innerText = sliderMimics.value;
+        // Action Buttons
+        btnNextFloor.addEventListener('click', () => {
+            if (isFloorCleared) {
+                currentFloor++;
+                if (currentFloor > maxFloor) { maxFloor = currentFloor; localStorage.setItem('mimicMaxFloor', maxFloor); }
+                initFloor();
             }
         });
-
-        sliderChests.addEventListener('input', (e) => {
-            let val = parseInt(e.target.value);
-            valChests.innerText = val;
-            let maxM = Math.max(1, Math.floor((val - 1) / 2));
-            sliderMimics.max = maxM;
-            if (parseInt(sliderMimics.value) > maxM) {
-                sliderMimics.value = maxM;
-            }
-            if (!chkRandom.checked) {
-                valMimics.innerText = sliderMimics.value;
-            }
-        });
-
-        sliderMimics.addEventListener('input', (e) => {
-            valMimics.innerText = e.target.value;
-        });
-
-        btnChestsDown.addEventListener('click', () => {
-            if (sliderChests.value > parseInt(sliderChests.min)) {
-                sliderChests.value = parseInt(sliderChests.value) - 1;
-                sliderChests.dispatchEvent(new Event('input'));
-            }
-        });
-        btnChestsUp.addEventListener('click', () => {
-            if (sliderChests.value < parseInt(sliderChests.max)) {
-                sliderChests.value = parseInt(sliderChests.value) + 1;
-                sliderChests.dispatchEvent(new Event('input'));
-            }
-        });
-
-        btnMimicsDown.addEventListener('click', () => {
-            if (!chkRandom.checked && sliderMimics.value > parseInt(sliderMimics.min)) {
-                sliderMimics.value = parseInt(sliderMimics.value) - 1;
-                sliderMimics.dispatchEvent(new Event('input'));
-            }
-        });
-        btnMimicsUp.addEventListener('click', () => {
-            if (!chkRandom.checked && sliderMimics.value < parseInt(sliderMimics.max)) {
-                sliderMimics.value = parseInt(sliderMimics.value) + 1;
-                sliderMimics.dispatchEvent(new Event('input'));
-            }
-        });
-
-        btnStart.addEventListener('click', (e) => {
-            if (e) e.preventDefault();
-            initGame();
-        });
-
+        btnRestart.addEventListener('click', () => startClimb());
+        
         btnOpenO.addEventListener('click', () => {
             if (isGameOver) return;
-            let oChests = [];
-            chestsData.forEach((c, idx) => {
-                if (c.mark === 'O' && !c.isOpen) oChests.push(idx);
-            });
+            let oChests = []; chestsData.forEach((c, idx) => { if (c.mark === 'O' && !c.isOpen) oChests.push(idx); });
+            if (oChests.length === 0) { statusMsg.innerText = "⭕(진짜)로 마킹된 상자가 없습니다!"; return; }
+            for (let idx of oChests) { if (isGameOver) break; openChest(idx); }
+        });
+        btnClearMarks.addEventListener('click', () => {
+            if (isGameOver) return;
+            chestsData.forEach(c => { c.mark = null; c.memo = []; }); renderChests();
+            statusMsg.innerText = "모든 마킹과 메모를 초기화했습니다.";
+            if(window.autoSaveToCloud) window.autoSaveToCloud();
+        });
 
-            if (oChests.length === 0) {
-                statusMsg.innerText = "⭕(진짜)로 마킹된 상자가 없습니다!";
-                statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-amber-600 drop-shadow-sm";
+        // Key bindings
+        let lastCKeyTime = 0;
+        window.addEventListener('keydown', (e) => {
+            if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+            const pressedKey = e.key.toLowerCase();
+            
+            if (pressedKey === 'r') {
+                e.preventDefault(); e.stopPropagation();
+                if (isGameOver) {
+                    if (isFloorCleared) btnNextFloor.click(); else btnRestart.click();
+                }
+                return;
+            }
+            if (pressedKey === 'z') { e.preventDefault(); btnOpenO.click(); return; }
+            if (pressedKey === 'x') { e.preventDefault(); btnClearMarks.click(); return; }
+            
+            if (pressedKey === 'c') {
+                e.preventDefault(); if (e.repeat) return;
+                const now = Date.now();
+                if (now - lastCKeyTime <= 400) {
+                    lastCKeyTime = 0;
+                    if (isGameOver) return;
+                    let targets = []; chestsData.forEach((c, i) => { if (!c.isOpen && c.mark !== 'X') targets.push(i); });
+                    if (targets.length === 0) { statusMsg.innerText = "열 수 있는 상자가 없습니다."; return; }
+                    for (const idx of targets) { if (isGameOver) break; openChest(idx); }
+                } else {
+                    lastCKeyTime = now;
+                    statusMsg.innerText = "X 표시 상자를 제외하고 열려면 C를 한 번 더 누르세요.";
+                    statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-amber-600 drop-shadow-sm";
+                }
                 return;
             }
 
-            for (let idx of oChests) {
-                if (isGameOver) break;
-                openChest(idx);
+            if (hoveredChestIdx !== null && !isGameOver && !chestsData[hoveredChestIdx].isOpen) {
+                if (pressedKey === 'q') { e.preventDefault(); toggleMark(hoveredChestIdx, 'O'); }
+                else if (pressedKey === 'w') { e.preventDefault(); toggleMark(hoveredChestIdx, 'X'); }
+                else if (pressedKey === 'e') { e.preventDefault(); toggleMark(hoveredChestIdx, '?'); }
+                else if (['1','2','3','4','5'].includes(e.key)) { e.preventDefault(); toggleMemo(hoveredChestIdx, parseInt(e.key)); }
             }
         });
 
-        btnClearMarks.addEventListener('click', () => {
-            if (isGameOver) return;
-            chestsData.forEach(c => {
-                c.mark = null;
-                c.memo = [];
-            });
-            renderChests();
-            statusMsg.innerText = "모든 마킹과 메모를 초기화했습니다.";
-            statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-slate-600 drop-shadow-sm";
-        });
-
-        btnReveal.addEventListener('click', () => {
-            chestsData.forEach(c => c.isOpen = true);
-            gameOver(false);
-            statusMsg.innerText = "정답 공개!";
-            statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-slate-600 drop-shadow-sm";
-            renderChests();
-        });
-
-        window.onload = () => {
-            initGame();
-        };
+        window.onload = () => { if(window.initialSlotLoad) window.initialSlotLoad(); else startClimb(); };
     </script>
 </body>
 </html>
