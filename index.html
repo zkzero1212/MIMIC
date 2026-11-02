@@ -550,7 +550,12 @@
                 btn.onclick = () => {
                     c.action();
                     overlay.classList.add('hidden');
-                    restVisitedForCurrentFloor = true;
+                    restVisitedForCurrentFloor = false;
+                    currentFloor++;
+                    if (currentFloor > maxFloor) {
+                        maxFloor = currentFloor;
+                        localStorage.setItem('mimicMaxFloor', maxFloor);
+                    }
                     initFloor();
                 };
                 optionsContainer.appendChild(btn);
@@ -642,6 +647,7 @@
             
             if (isRestFloor(currentFloor) && !restVisitedForCurrentFloor) {
                 showRestArea();
+                if (window.autoSaveToCloud) window.autoSaveToCloud();
                 return;
             }
             restVisitedForCurrentFloor = false; 
