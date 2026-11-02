@@ -730,16 +730,20 @@
         function getMirrorPairs(layout) {
             const byCoord = new Map(layout.pos.map(([r, c], i) => [`${r},${c}`, i]));
             const pairs = [];
-            layout.pos.forEach(([r, c], i) => {
+            // 대칭 단서는 보드의 모든 좌표가 반대편 좌표와 짝을 이룰 때만 사용합니다.
+            for (let i = 0; i < layout.pos.length; i++) {
+                const [r, c] = layout.pos[i];
                 const mirror = byCoord.get(`${r},${layout.cols - 1 - c}`);
-                if (mirror !== undefined && i < mirror) pairs.push([i, mirror]);
-            });
+                if (mirror === undefined) return null;
+                if (i < mirror) pairs.push([i, mirror]);
+            }
             return pairs;
         }
 
         function isMirrorSymmetric(combo, layout) {
             const pairs = getMirrorPairs(layout);
-            return pairs.length > 0 && pairs.every(([a, b]) => (combo[a] === 'M') === (combo[b] === 'M'));
+            return Array.isArray(pairs) && pairs.length > 0 &&
+                pairs.every(([a, b]) => (combo[a] === 'M') === (combo[b] === 'M'));
         }
 
         function escapeStatementText(value) { return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -810,18 +814,18 @@
             }
 
             const actualAdj = checkAdjacency(roles, layout);
-            addStmt(actualAdj === true, 'ADJACENCY_M', '이 맵에는 6방향으로 인접한 미믹이 있어.', { hasAdj: true }, 8, ['global']);
-            addStmt(actualAdj === false, 'ADJACENCY_M', '이 맵에는 6방향으로 인접한 미믹이 없어.', { hasAdj: false }, 8, ['global']);
+            addStmt(actualAdj === true, 'ADJACENCY_M', '이 맵에는 서로 이웃한 미믹이 있어.', { hasAdj: true }, 8, ['global']);
+            addStmt(actualAdj === false, 'ADJACENCY_M', '이 맵에는 서로 이웃한 미믹이 없어.', { hasAdj: false }, 8, ['global']);
 
             // Peer / Mimic Position: inspect every actual hex-neighbor, not only one direction.
             const peerGroup = getHexNeighbors(layout, speakerIdx);
             if (peerGroup.length > 0) {
                 const peerMimicCount = peerGroup.filter(idx => roles[idx] === 'M').length;
                 addCountStmts(peerMimicCount, peerGroup.length, 'GROUP_M_COUNT',
-                    '내 6방향 이웃에는', { group: peerGroup }, 7, ['peer:hex']);
-                addStmt(peerMimicCount > 0, 'GROUP_M_EXIST', '내 주변 6방향에 미믹이 있어.',
+                    '내 주위에는', { group: peerGroup }, 7, ['peer:hex']);
+                addStmt(peerMimicCount > 0, 'GROUP_M_EXIST', '내 주위에는 미믹이 있어.',
                     { group: peerGroup, hasMimic: true }, 6, ['peer:hex']);
-                addStmt(peerMimicCount === 0, 'GROUP_M_EXIST', '내 주변 6방향에 미믹이 없어.',
+                addStmt(peerMimicCount === 0, 'GROUP_M_EXIST', '내 주위에는 미믹이 없어.',
                     { group: peerGroup, hasMimic: false }, 6, ['peer:hex']);
             }
 
@@ -839,7 +843,7 @@
 
             // Symmetry is evaluated by mirrored coordinates in the actual board layout.
             const mirrorPairs = getMirrorPairs(layout);
-            if (mirrorPairs.length > 0) {
+            if (Array.isArray(mirrorPairs) && mirrorPairs.length > 0) {
                 const symmetric = isMirrorSymmetric(roles, layout);
                 addStmt(symmetric, 'SYMMETRY_M', '미믹 배치가 좌우 대칭이야.', { isSymmetric: true }, 4, ['symmetry']);
                 addStmt(!symmetric, 'SYMMETRY_M', '미믹 배치가 좌우 대칭이 아니야.', { isSymmetric: false }, 4, ['symmetry']);
