@@ -406,7 +406,7 @@
             if (floor < 4) return 4;
             return 4 + (Math.floor((floor - 4) / 5) + 1) * 5;
         }
-        // 구간 기본 상자 수: 각 4층 구간의 1~4층은 4, 5, 6, 6개.
+        // 기본 상자 수: 1~3층은 4, 5, 6개이며 4층 이후는 6개부터 시작합니다.
         let segmentChestBonus = 0;
         let segmentMimicBonus = 0;
         let bossRewardsClaimedFloors = [];
