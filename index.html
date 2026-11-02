@@ -157,14 +157,14 @@
             
             <!-- Left Info Panel (Climbing Stats) -->
             <div id="left-info-panel" class="bg-white rounded-xl p-2 shadow-sm border border-slate-200 lg:col-span-1 flex flex-col gap-2 transition-colors duration-300 min-w-0">
-                <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center justify-between">
+                <h3 class="text-[11px] font-bold text-slate-700 uppercase tracking-tight border-b border-slate-200 pb-1 flex flex-col items-center gap-1 text-center">
                     <span>등반 정보</span>
-                    <span class="text-xs font-extrabold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded shadow-sm">최고: <span id="ui-max-floor">1</span>F</span>
+                    <span class="text-[9px] font-extrabold text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap">최고 <span id="ui-max-floor">1</span>F</span>
                 </h3>
                 
-                <div class="flex items-center justify-center bg-indigo-50 p-3 rounded-lg border border-indigo-100 shadow-inner">
-                    <span class="font-bold text-indigo-700 text-lg mr-2">현재 층:</span>
-                    <span id="ui-floor" class="font-extrabold text-indigo-900 text-3xl drop-shadow-sm">1F</span>
+                <div class="flex flex-col items-center justify-center gap-1 bg-indigo-50 p-2 rounded-lg border border-indigo-100 shadow-inner w-full min-w-0">
+                    <span class="font-bold text-indigo-700 text-xs leading-tight whitespace-nowrap">현재층</span>
+                    <span id="ui-floor" class="font-extrabold text-indigo-900 text-2xl leading-none drop-shadow-sm whitespace-nowrap">1F</span>
                 </div>
 
                 <div class="grid grid-cols-1 gap-1.5 text-xs">
@@ -245,15 +245,15 @@
             </div>
 
             <!-- Right Control Panel -->
-            <div id="right-control-panel" class="bg-white rounded-xl p-2 shadow-sm border border-slate-200 lg:col-span-1 flex flex-col gap-2 min-w-0">
+            <div id="right-control-panel" class="bg-white rounded-xl p-1.5 shadow-sm border border-slate-200 lg:col-span-1 flex flex-col gap-1.5 min-w-0 text-[10px]">
                 
-                <div class="mb-3 bg-slate-50 p-2.5 rounded-lg border border-slate-200 shadow-sm relative">
-                    <h4 class="text-[10px] font-extrabold text-slate-600 mb-2 flex items-center justify-between">
+                <div class="mb-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200 shadow-sm relative">
+                    <h4 class="text-[9px] font-extrabold text-slate-600 mb-1.5 flex flex-col items-center gap-1 text-center">
                         <span class="flex items-center gap-1">
                             <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
                             클라우드 세이브 슬롯 (자동 저장)
                         </span>
-                        <span id="save-indicator" class="text-[10px] text-emerald-600 font-extrabold opacity-0 transition-opacity duration-300 drop-shadow-sm bg-emerald-100 px-1.5 rounded">💾 자동 저장됨</span>
+                        <span id="save-indicator" class="text-[8px] text-emerald-600 font-extrabold opacity-0 transition-opacity duration-300 drop-shadow-sm bg-emerald-100 px-1 rounded">💾 자동 저장됨</span>
                     </h4>
                     
                     <div class="flex flex-col gap-1">
@@ -261,7 +261,7 @@
                         <button id="slot-Mimic2" onclick="selectSlot('Mimic2')" class="flex-1 bg-white hover:bg-indigo-50 text-slate-600 border border-slate-300 font-extrabold py-2 px-1 rounded text-[11px] shadow-sm transition-all">Mimic2</button>
                         <button id="slot-Mimic3" onclick="selectSlot('Mimic3')" class="flex-1 bg-white hover:bg-indigo-50 text-slate-600 border border-slate-300 font-extrabold py-2 px-1 rounded text-[11px] shadow-sm transition-all">Mimic3</button>
                     </div>
-                    <p class="text-[9.5px] text-slate-500 mt-2 leading-tight text-center break-keep">모든 진행 상황이 <b>실시간으로 자동 저장</b>됩니다.</p>
+                    <p class="text-[8px] text-slate-500 mt-1.5 leading-tight text-center break-keep">모든 진행 상황이 <b>실시간으로 자동 저장</b>됩니다.</p>
                 </div>
                 <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-1.5">진행 및 액션</h3>
                 
@@ -401,6 +401,9 @@
         let baseMimics = 1;
         function isBossFloor(floor) {
             return floor >= 4 && (floor - 4) % 5 === 0;
+        }
+        function isRestFloor(floor) {
+            return floor > 0 && floor % 5 === 0;
         }
         function getNextBossFloor(floor) {
             if (floor < 4) return 4;
@@ -559,8 +562,8 @@
             document.getElementById('ui-floor').innerText = `${currentFloor}F`;
             document.getElementById('ui-max-floor').innerText = `${maxFloor}`;
             
-            let nextRest = 5 - (currentFloor % 5);
-            document.getElementById('ui-next-rest').innerText = nextRest === 5 ? "현재 층" : `${nextRest}층 남음`;
+            let nextRest = isRestFloor(currentFloor) ? 0 : 5 - (currentFloor % 5);
+            document.getElementById('ui-next-rest').innerText = nextRest === 0 ? "현재 층" : `${nextRest}층 남음`;
             
             const nextBossFloor = isBossFloor(currentFloor) ? currentFloor : getNextBossFloor(currentFloor);
             const nextBoss = nextBossFloor - currentFloor;
@@ -637,7 +640,7 @@
             isLuckEvent = false;
             container.innerHTML = '';
             
-            if (currentFloor % 5 === 0 && !restVisitedForCurrentFloor) {
+            if (isRestFloor(currentFloor) && !restVisitedForCurrentFloor) {
                 showRestArea();
                 return;
             }
@@ -1251,7 +1254,7 @@
                     if (!isPreview) { chestWrap.onmouseenter = () => { hoveredChestIdx = idx; }; chestWrap.onmouseleave = () => { if (hoveredChestIdx === idx) hoveredChestIdx = null; }; }
 
                     const coord = getCoord(idx, layout);
-                    const coordBadge = document.createElement('div'); coordBadge.className = "absolute -top-1 -left-1 md:-left-2 bg-indigo-900 text-amber-400 font-extrabold px-1.5 py-0.5 rounded border border-indigo-700 shadow-sm z-10 text-[10px]";
+                    const coordBadge = document.createElement('div'); coordBadge.className = "absolute -top-2 -left-2 md:-left-3 bg-indigo-900 text-amber-400 font-extrabold px-1 py-0.5 rounded border border-indigo-700 shadow-sm z-10 text-[9px]";
                     coordBadge.innerText = coord.name; chestWrap.appendChild(coordBadge);
 
                     const bubble = document.createElement('div');
