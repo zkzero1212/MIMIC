@@ -321,6 +321,10 @@
             maxFloor = Math.max(1, Number(data.maxFloor) || 1);
             permCurses = data.permCurses || { random: false, sleepLevel: 0, addChests: 0, addMimics: 0 };
             eventState = data.eventState || { initialChance: 15, chance: 15, triggerCount: 0, missCount: 0 };
+            eventState.triggerCount = Math.max(0, Number(eventState.triggerCount) || 0);
+            eventState.missCount = Math.max(0, Number(eventState.missCount) || 0);
+            eventState.initialChance = 15;
+            eventState.chance = getEventChance(currentFloor);
             let completedBossesForMigration = 0;
             for (let bossFloor = 4; bossFloor <= currentFloor; bossFloor += 5) {
                 if (bossFloor < currentFloor || (bossFloor === currentFloor && data.isFloorCleared)) {
@@ -433,6 +437,17 @@
             missCount: 0
         };
 
+        // 6~10층(2구간)은 기본 15%, 이후 구간마다 기본확률 +5%p.
+        // 발생 보너스와 미발생 보너스는 구간 번호에 따라 각각 가중됩니다.
+        function getEventChance(floor = currentFloor) {
+            const segmentNumber = Math.max(2, Math.floor((floor - 1) / 5) + 1);
+            const segmentWeight = segmentNumber - 1;
+            const segmentBaseChance = 15 + (segmentNumber - 2) * 5;
+            const permanentBonus = eventState.triggerCount * segmentWeight;
+            const temporaryBonus = eventState.missCount * segmentWeight;
+            return Math.min(100, segmentBaseChance + permanentBonus + temporaryBonus);
+        }
+
         let currentTempCurses = {};
         let currentEventLogs = [];
         let isLuckEvent = false;
@@ -535,7 +550,7 @@
             let possibleOptions = [];
             possibleOptions.push({ text: "수면 저주 일시 완화 (이번 층 수면 2개 감소)", action: () => { tempBuffs.reduceSleep = 2; }});
             possibleOptions.push({ text: "혼돈 차단 (이번 층 미믹 랜덤화 방지)", action: () => { tempBuffs.preventRandom = true; }});
-            possibleOptions.push({ text: "이벤트 억제 (일반 이벤트 확률 초기화)", action: () => { eventState.chance = eventState.initialChance; eventState.missCount = 0; }});
+            possibleOptions.push({ text: "이벤트 억제 (일반 이벤트 확률 초기화)", action: () => { eventState.missCount = 0; eventState.chance = getEventChance(); }});
             
             if (permCurses.random) possibleOptions.push({ text: "✨ 영구 랜덤 저주 완전 정화", action: () => { permCurses.random = false; }});
             if (permCurses.addMimics > 0) possibleOptions.push({ text: "✨ 영구 미믹 증식 저주 1단계 정화", action: () => { permCurses.addMimics = 0; }});
@@ -580,7 +595,7 @@
             document.getElementById('ui-segment-mimic-bonus').innerText = segmentMimicBonus;
             document.getElementById('info-sleep').innerText = `${sleepCount}개`;
             
-            document.getElementById('ui-event-chance').innerText = currentFloor >= 6 ? `${Math.floor(eventState.chance)}%` : `(6F부터)`;
+            document.getElementById('ui-event-chance').innerText = currentFloor >= 6 ? `${Math.floor(getEventChance(currentFloor))}%` : `(6F부터)`;
             
             let permList = [];
             if (permCurses.addChests > 0) permList.push(`상자 증식 +${permCurses.addChests}`);
@@ -659,20 +674,19 @@
                     isLuckEvent = true;
                     currentEventLogs.push("🍀 [희귀 행운] 상자가 4개, 미믹이 1개로 고정됩니다!");
                 } else {
-                    let isEvent = Math.random() * 100 < eventState.chance;
-                    let floorTier = Math.floor(currentFloor / 10);
-                    let multiplier = 2 + floorTier;
-                    
+                    eventState.chance = getEventChance(currentFloor);
+                    const isEvent = Math.random() * 100 < eventState.chance;
+
                     if (isEvent) {
                         applyEvent(drawEvent());
-                        eventState.chance = eventState.initialChance;
+                        // 발생 횟수는 영구 누적하고, 미발생 누적만 초기화합니다.
                         eventState.triggerCount++;
                         eventState.missCount = 0;
                     } else {
+                        // 미발생 보너스는 다음 층 확률에만 반영되며 이벤트 발생 시 초기화됩니다.
                         eventState.missCount++;
-                        eventState.triggerCount = 0;
-                        eventState.chance = Math.min(100, eventState.chance + (eventState.missCount * multiplier));
                     }
+                    eventState.chance = getEventChance(currentFloor);
                 }
             }
             
@@ -765,7 +779,7 @@
         // --- Generation Engine (Preserved logic with weight adjustments) ---
         function getGridLayout(n) {
             const rowCountsBySize = {
-                3: [1, 2], 4: [4], 5: [2, 1, 2], 6: [3, 3], 7: [2, 3, 2], 8: [4, 4],
+                3: [1, 2], 4: [2, 2], 5: [2, 1, 2], 6: [3, 3], 7: [2, 3, 2], 8: [4, 4],
                 9: [3, 3, 3], 10: [4, 2, 4], 11: [4, 3, 4], 12: [4, 4, 4],
                 13: [5, 3, 5], 14: [5, 4, 5], 15: [5, 5, 5], 16: [6, 4, 6],
                 17: [6, 5, 6], 18: [6, 6, 6]
