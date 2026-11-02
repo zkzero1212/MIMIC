@@ -281,17 +281,19 @@
         };
 
         window.loadGameState = (data) => {
-            currentFloor = data.currentFloor || 1;
-            maxFloor = data.maxFloor || 1;
+            currentFloor = Math.max(1, Number(data.currentFloor) || 1);
+            maxFloor = Math.max(1, Number(data.maxFloor) || 1);
             permCurses = data.permCurses || { random: false, sleepLevel: 0, addChests: 0, addMimics: 0 };
             eventState = data.eventState || { initialChance: 15, chance: 15, triggerCount: 0, missCount: 0 };
             localStorage.setItem('mimicMaxFloor', maxFloor);
             
-            chestsData = data.chestsData || [];
-            // Firebase RTDB는 빈 배열([])을 저장하지 않고 날려버리는 특성이 있습니다.
-            // 불러올 때 memo 배열이 사라져서 에러가 나는 것을 방지하기 위해 빈 배열을 강제로 주입합니다.
+            const savedChests = data.chestsData || [];
+            chestsData = Array.isArray(savedChests)
+                ? savedChests
+                : Object.keys(savedChests).sort((a, b) => Number(a) - Number(b)).map(key => savedChests[key]);
+            // Firebase RTDB can deserialize indexed arrays as objects and omit empty memo arrays.
             chestsData.forEach(c => {
-                if (!c.memo) c.memo = [];
+                if (!Array.isArray(c.memo)) c.memo = [];
             });
             totalOpened = data.totalOpened || 0;
             totalTrueChests = data.totalTrueChests || 0;
@@ -621,7 +623,14 @@
                 
                 isRandomMode = isRandom;
                 let puzzle = generatePuzzle(calcChests, calcMimics, rawTreasures, isBoss);
-                if (!puzzle) { startClimb(); return; } // Very rare fallback
+                if (!puzzle) {
+                    // Keep the current floor/progression if randomized clue generation exhausts its attempts.
+                    genWarning.classList.add('invisible');
+                    statusMsg.innerText = "퍼즐 생성에 실패했습니다. 현재 층을 다시 생성합니다.";
+                    statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-red-600 drop-shadow-sm";
+                    setTimeout(() => initFloor(), 250);
+                    return;
+                }
                 
                 chestsData = [];
                 for (let i = 0; i < calcChests; i++) {
@@ -699,18 +708,38 @@
             return { colName: String.fromCharCode(65 + col), rowName: (row + 1).toString(), name: `${String.fromCharCode(65 + col)}${row + 1}` };
         }
 
+        // Odd-row offset hex coordinates: each chest has up to six real neighbors.
+        function getHexNeighbors(layout, index) {
+            const [row, col] = layout.pos[index];
+            const offsets = row % 2 === 0
+                ? [[0, -1], [0, 1], [-1, -1], [-1, 0], [1, -1], [1, 0]]
+                : [[0, -1], [0, 1], [-1, 0], [-1, 1], [1, 0], [1, 1]];
+            const byCoord = new Map(layout.pos.map(([r, c], i) => [`${r},${c}`, i]));
+            return offsets.map(([dr, dc]) => byCoord.get(`${row + dr},${col + dc}`))
+                .filter(i => i !== undefined);
+        }
+
         function checkAdjacency(combo, layout) {
-            const num = combo.length;
-            for (let i = 0; i < num; i++) {
+            for (let i = 0; i < combo.length; i++) {
                 if (combo[i] !== 'M') continue;
-                for (let j = i + 1; j < num; j++) {
-                    if (combo[j] !== 'M') continue;
-                    const [r1, c1] = layout.pos[i];
-                    const [r2, c2] = layout.pos[j];
-                    if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) return true;
-                }
+                if (getHexNeighbors(layout, i).some(j => combo[j] === 'M')) return true;
             }
             return false;
+        }
+
+        function getMirrorPairs(layout) {
+            const byCoord = new Map(layout.pos.map(([r, c], i) => [`${r},${c}`, i]));
+            const pairs = [];
+            layout.pos.forEach(([r, c], i) => {
+                const mirror = byCoord.get(`${r},${layout.cols - 1 - c}`);
+                if (mirror !== undefined && i < mirror) pairs.push([i, mirror]);
+            });
+            return pairs;
+        }
+
+        function isMirrorSymmetric(combo, layout) {
+            const pairs = getMirrorPairs(layout);
+            return pairs.length > 0 && pairs.every(([a, b]) => (combo[a] === 'M') === (combo[b] === 'M'));
         }
 
         function escapeStatementText(value) { return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -782,8 +811,40 @@
             }
 
             const actualAdj = checkAdjacency(roles, layout);
-            addStmt(actualAdj === true, 'ADJACENCY_M', '이 맵에는 상하좌우로 인접한 미믹이 있어.', { hasAdj: true }, 8, ['global']);
-            addStmt(actualAdj === false, 'ADJACENCY_M', '이 맵에는 상하좌우로 붙어있는 미믹이 없어.', { hasAdj: false }, 8, ['global']);
+            addStmt(actualAdj === true, 'ADJACENCY_M', '이 맵에는 6방향으로 인접한 미믹이 있어.', { hasAdj: true }, 8, ['global']);
+            addStmt(actualAdj === false, 'ADJACENCY_M', '이 맵에는 6방향으로 인접한 미믹이 없어.', { hasAdj: false }, 8, ['global']);
+
+            // Peer / Mimic Position: inspect every actual hex-neighbor, not only one direction.
+            const peerGroup = getHexNeighbors(layout, speakerIdx);
+            if (peerGroup.length > 0) {
+                const peerMimicCount = peerGroup.filter(idx => roles[idx] === 'M').length;
+                addCountStmts(peerMimicCount, peerGroup.length, 'GROUP_M_COUNT',
+                    '내 6방향 이웃에는', { group: peerGroup }, 7, ['peer:hex']);
+                addStmt(peerMimicCount > 0, 'GROUP_M_EXIST', '내 주변 6방향에 미믹이 있어.',
+                    { group: peerGroup, hasMimic: true }, 6, ['peer:hex']);
+                addStmt(peerMimicCount === 0, 'GROUP_M_EXIST', '내 주변 6방향에 미믹이 없어.',
+                    { group: peerGroup, hasMimic: false }, 6, ['peer:hex']);
+            }
+
+            // Chain Logic: count mimics along the speaker's complete row and column.
+            const chainGroups = [
+                { label: '내 행의 상자 줄', group: layout.pos.map(([r], i) => r === row ? i : -1).filter(i => i >= 0) },
+                { label: '내 열의 상자 줄', group: layout.pos.map(([, c], i) => c === col ? i : -1).filter(i => i >= 0) }
+            ];
+            for (const chain of chainGroups) {
+                if (chain.group.length > 1) {
+                    const count = chain.group.filter(idx => roles[idx] === 'M').length;
+                    addCountStmts(count, chain.group.length, 'GROUP_M_COUNT', chain.label, { group: chain.group }, 4, ['chain']);
+                }
+            }
+
+            // Symmetry is evaluated by mirrored coordinates in the actual board layout.
+            const mirrorPairs = getMirrorPairs(layout);
+            if (mirrorPairs.length > 0) {
+                const symmetric = isMirrorSymmetric(roles, layout);
+                addStmt(symmetric, 'SYMMETRY_M', '미믹 배치가 좌우 대칭이야.', { isSymmetric: true }, 4, ['symmetry']);
+                addStmt(!symmetric, 'SYMMETRY_M', '미믹 배치가 좌우 대칭이 아니야.', { isSymmetric: false }, 4, ['symmetry']);
+            }
 
             for (let c of presentColors) {
                 let mM = colorCounts[c].M; let colorGroup = [];
@@ -926,6 +987,7 @@
                     case 'ALL_DIFF_ROWS': let mRows = new Set(); combo.forEach((r, idx) => { if(r === 'M') mRows.add(layout.pos[idx][0]); }); isTrue = stmt.diff ? (mRows.size === combo.filter(r => r === 'M').length) : (mRows.size < combo.filter(r => r === 'M').length); break;
                     case 'ALL_DIFF_COLS': let mCols = new Set(); combo.forEach((r, idx) => { if(r === 'M') mCols.add(layout.pos[idx][1]); }); isTrue = stmt.diff ? (mCols.size === combo.filter(r => r === 'M').length) : (mCols.size < combo.filter(r => r === 'M').length); break;
                     case 'ADJACENCY_M': isTrue = (checkAdjacency(combo, layout) === stmt.hasAdj); break;
+                    case 'SYMMETRY_M': isTrue = (isMirrorSymmetric(combo, layout) === stmt.isSymmetric); break;
                 }
                 if (assumesTruth !== isTrue) return false;
             }
