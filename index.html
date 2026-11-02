@@ -137,7 +137,7 @@
         <!-- Header -->
         <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
-                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v0.3</span>
+                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v0.4</span>
             </h1>
             <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
@@ -1295,14 +1295,14 @@
                 if (rowGroups[r].length === 0) continue;
                 const rowContainer = document.createElement('div');
                 rowContainer.className = "grid justify-center items-start w-max mx-auto shrink-0";
-                rowContainer.style.gridTemplateColumns = `repeat(${layout.cols}, 6rem)`;
-                rowContainer.style.columnGap = window.matchMedia('(min-width: 768px)').matches ? '0.75rem' : '0.5rem';
+                rowContainer.style.gridTemplateColumns = `repeat(${layout.cols}, 8rem)`;
+                rowContainer.style.columnGap = window.matchMedia('(min-width: 768px)').matches ? '1.25rem' : '1rem';
                 rowContainer.style.flexShrink = "0";
                 rowGroups[r].sort((a, b) => layout.pos[a][1] - layout.pos[b][1]);
 
                 for (let idx of rowGroups[r]) {
                     const chest = boardData[idx];
-                    const chestWrap = document.createElement('div'); chestWrap.className = `flex flex-col items-center w-24 md:w-24 relative mt-1 shrink-0`;
+                    const chestWrap = document.createElement('div'); chestWrap.className = `flex flex-col items-center w-32 relative mt-1 shrink-0`;
                     if (!isPreview) { chestWrap.onmouseenter = () => { hoveredChestIdx = idx; }; chestWrap.onmouseleave = () => { if (hoveredChestIdx === idx) hoveredChestIdx = null; }; }
 
                     const coord = getCoord(idx, layout);
@@ -1345,12 +1345,18 @@
                     if (!isPreview && !chest.isOpen) btnChest.onclick = () => openChest(idx);
                     chestWrap.appendChild(btnChest);
 
-                    const actionWrap = document.createElement('div'); actionWrap.className = "mt-2 w-full flex flex-col items-center gap-1";
-                    
+                    const actionWrap = document.createElement('div'); actionWrap.className = "mt-2 w-full h-8 flex flex-col items-center justify-start";
+                    // 개봉 전부터 결과 표시 공간을 예약해 개봉할 때 행 높이가 흔들리지 않게 합니다.
+                    const resultBadge = document.createElement('div');
+                    resultBadge.className = `w-full min-h-7 px-2 py-1 rounded-lg bg-white shadow-xs text-[11px] leading-tight font-bold text-center flex items-center justify-center break-keep ${chest.role === 'M' ? 'text-red-600' : (treasureColorMap[chest.treasure] || { text: 'text-emerald-700' }).text}`;
                     if (chest.isOpen) {
-                        const tCol = chest.role === 'M' ? { text: 'text-red-600' } : (treasureColorMap[chest.treasure] || { text: 'text-emerald-700' });
-                        const resultBadge = document.createElement('div'); resultBadge.className = `text-[11px] font-bold py-1 px-2.5 rounded-full bg-white shadow-xs ${tCol.text}`;
-                        resultBadge.innerText = chest.role === 'M' ? '미믹!' : (isRandomMode && !isGameOver ? '?' : chest.treasure); actionWrap.appendChild(resultBadge);
+                        // 랜덤 미믹 모드에서도 개봉한 진짜 상자의 실제 구성품은 즉시 공개합니다.
+                        resultBadge.innerText = chest.role === 'M' ? '미믹!' : chest.treasure;
+                        actionWrap.appendChild(resultBadge);
+                    } else {
+                        resultBadge.style.visibility = "hidden";
+                        resultBadge.innerText = "구성품 자리";
+                        actionWrap.appendChild(resultBadge);
                     }
                     chestWrap.appendChild(actionWrap); chestWrap.style.gridColumnStart = String(layout.pos[idx][1] + 1); rowContainer.appendChild(chestWrap);
                 }
