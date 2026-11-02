@@ -9,6 +9,11 @@
         body { font-family: 'Pretendard', 'Inter', sans-serif; background-color: #f8fafc; color: #1e293b; }
         .chest-bounce { animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         .mimic-shake { animation: shake 0.5s; }
+        @keyframes mimicReveal { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+        @keyframes treasureReveal { 0% { box-shadow: 0 0 0 0 rgba(16,185,129,0); } 50% { box-shadow: 0 0 0 5px rgba(16,185,129,0.16); } 100% { box-shadow: 0 0 0 2px rgba(16,185,129,0.3); } }
+        .mimic-result-reveal { outline: 2px solid rgba(220,38,38,0.65); outline-offset: 2px; animation: mimicReveal 0.32s ease-out; }
+        .treasure-result-reveal { outline: 2px solid rgba(5,150,105,0.55); outline-offset: 2px; animation: treasureReveal 0.55s ease-out both; }
+        @media (prefers-reduced-motion: reduce) { .mimic-result-reveal, .treasure-result-reveal { animation: none; } }
         
         @keyframes bounceIn {
             0% { transform: scale(0.1); opacity: 0; }
@@ -205,6 +210,18 @@
                 <!-- 가로형 구성품 리스트 -->
                 <div id="info-treasures-list" class="flex flex-wrap justify-center items-center gap-2 md:gap-4 mb-4 bg-white px-4 py-2.5 rounded-xl shadow-sm border border-slate-200 w-full max-w-2xl min-h-[48px]">
                 </div>
+                <!-- DEBUG CHEST LAYOUT PREVIEW: isolated removable feature -->
+                <section id="debug-layout-panel" class="hidden w-full max-w-2xl mb-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3">
+                    <div class="flex items-center justify-between gap-3 mb-2">
+                        <div><h3 class="text-xs font-extrabold text-amber-900">디버그 모드 · 상자 배치 미리보기</h3><p class="text-[10px] text-amber-800">실제 게임 진행 데이터에는 영향을 주지 않습니다.</p></div>
+                        <span id="debug-chest-count" class="text-sm font-extrabold text-amber-900 tabular-nums">4개</span>
+                    </div>
+                    <input id="debug-chest-slider" type="range" min="3" max="20" step="1" value="4" class="w-full accent-amber-600 cursor-pointer" aria-label="미리보기 상자 개수">
+                    <div class="flex justify-between text-[10px] text-amber-700"><span>3개</span><span>20개</span></div>
+                    <div id="debug-layout-preview" class="mt-3 flex flex-col gap-4 items-center w-full rounded-lg bg-white/80 p-2"></div>
+                </section>
+                <div class="flex justify-end w-full max-w-2xl -mt-2 mb-2"><button id="debug-layout-toggle" type="button" class="text-[10px] font-bold text-slate-500 hover:text-amber-700 border border-slate-200 hover:border-amber-300 bg-white px-2.5 py-1 rounded-lg transition-colors">디버그 모드 열기</button></div>
+                <!-- END DEBUG CHEST LAYOUT PREVIEW -->
                 <div id="chests-container" class="flex flex-col gap-4 items-center mx-auto mb-6 w-full transition-all duration-300">
                     <!-- Chests rendered here -->
                 </div>
@@ -1186,6 +1203,7 @@
                     btnChest.className = `relative flex items-center justify-center rounded-xl p-1 transition-all duration-300 ${chest.isOpen ? 'cursor-default' : 'hover:-translate-y-1.5 cursor-pointer'} ${openedBgClass} ${!chest.isOpen ? 'border border-slate-200' : ''}`;
                     if (!chest.isOpen && boxShadows.length > 0) btnChest.setAttribute("style", `box-shadow: ${boxShadows.join(', ')};`);
                     btnChest.innerHTML = getChestSvg(chest.color, chest.isOpen, chest.role === 'M', chest.treasure);
+                    if (isGameOver && chest.isOpen) btnChest.classList.add(chest.role === 'M' ? 'mimic-result-reveal' : 'treasure-result-reveal');
                     
                     if (!chest.isOpen) btnChest.onclick = () => openChest(idx);
                     chestWrap.appendChild(btnChest);
@@ -1222,6 +1240,50 @@
             }
         }
 
+        // DEBUG CHEST LAYOUT PREVIEW: remove this isolated block to roll back the feature.
+        function renderDebugChestPreview(count) {
+            const preview = document.getElementById('debug-layout-preview');
+            const countLabel = document.getElementById('debug-chest-count');
+            if (!preview || !countLabel) return;
+            countLabel.textContent = count + '개';
+            preview.innerHTML = '';
+            const layout = getGridLayout(count);
+            const rows = Array.from({ length: layout.rows }, () => []);
+            layout.pos.forEach(([row], idx) => rows[row].push(idx));
+            for (let row = 0; row < layout.rows; row++) {
+                if (!rows[row].length) continue;
+                const rowWrap = document.createElement('div');
+                rowWrap.className = 'flex justify-center items-start gap-3 md:gap-5 w-full flex-wrap';
+                rows[row].sort((a, b) => layout.pos[a][1] - layout.pos[b][1]);
+                rows[row].forEach(idx => {
+                    const tile = document.createElement('div');
+                    tile.className = 'relative flex flex-col items-center w-28 md:w-36';
+                    const badge = document.createElement("span");
+                    badge.className = 'absolute -top-2 -left-1 bg-slate-700 text-white font-bold px-1.5 py-0.5 rounded text-[10px] z-10';
+                    badge.textContent = getCoord(idx, layout).name;
+                    const shape = document.createElement('div');
+                    shape.className = 'w-full h-[58px] md:h-[68px] rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 flex items-center justify-center text-2xl';
+                    shape.textContent = '📦';
+                    tile.append(badge, shape);
+                    rowWrap.appendChild(tile);
+                });
+                preview.appendChild(rowWrap);
+            }
+        }
+        (function initDebugChestPreview() {
+            const panel = document.getElementById('debug-layout-panel');
+            const toggle = document.getElementById('debug-layout-toggle');
+            const slider = document.getElementById('debug-chest-slider');
+            if (!panel || !toggle || !slider) return;
+            toggle.addEventListener('click', () => {
+                const opening = panel.classList.contains('hidden');
+                panel.classList.toggle('hidden', !opening);
+                toggle.textContent = opening ? '디버그 모드 닫기' : '디버그 모드 열기';
+                if (opening) renderDebugChestPreview(Number(slider.value));
+            });
+            slider.addEventListener('input', () => renderDebugChestPreview(Number(slider.value)));
+        })();
+        // END DEBUG CHEST LAYOUT PREVIEW
         // --- User Interaction ---
         function toggleMark(idx, markType) { if (isGameOver || chestsData[idx].isOpen) return; chestsData[idx].mark = (chestsData[idx].mark === markType) ? null : markType; renderChests(); if(window.autoSaveToCloud) window.autoSaveToCloud(); }
         function toggleMemo(idx, num) {
