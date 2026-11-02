@@ -794,12 +794,34 @@
             const shortColorNames = { red: '빨간', blue: '파란', green: '초록', yellow: '노란', purple: '보라' };
 
             const addCountStmts = (actualCount, maxCount, type, prefixText, dataTemplate, weight = 10, tags = []) => {
+                // Standard mode uses the disclosed mimic count; random mode uses the board's maximum possible count.
+                const publicMaxMimics = isRandomMode ? Math.max(1, Math.floor((num - 1) / 2)) : totalM;
+                const boundedMax = Math.min(maxCount, publicMaxMimics);
                 const variants = [];
-                for (let n = 0; n <= maxCount; n++) variants.push({ truth: actualCount === n, text: n === 0 ? `${prefixText} 미믹이 없어.` : `${prefixText} 미믹은 정확히 ${n}마리야.`, data: { op: '==', count: n } });
-                for (let n = 1; n <= maxCount; n++) variants.push({ truth: actualCount >= n, text: `${prefixText} 미믹은 ${n}마리 이상이야.`, data: { op: '>=', count: n } });
-                for (let n = 1; n <= maxCount; n++) variants.push({ truth: actualCount <= n, text: `${prefixText} 미믹은 ${n}마리 이하야.`, data: { op: '<=', count: n } });
-                const candidateWeight = weight / Math.max(1, variants.length);
-                for (const variant of variants) addStmt(variant.truth, type, variant.text, { ...variant.data, ...dataTemplate }, candidateWeight, tags);
+                for (let n = 0; n <= boundedMax; n++) variants.push({
+                    truth: actualCount === n,
+                    text: n === 0 ? `${prefixText} 미믹이 없어.` : `${prefixText} 미믹은 정확히 ${n}마리야.`,
+                    data: { op: '==', count: n },
+                    decisiveMaximum: n === publicMaxMimics && publicMaxMimics > 0
+                });
+                for (let n = 1; n <= boundedMax; n++) variants.push({
+                    truth: actualCount >= n,
+                    text: `${prefixText} 미믹은 ${n}마리 이상이야.`,
+                    data: { op: '>=', count: n },
+                    decisiveMaximum: n === publicMaxMimics
+                });
+                // Do not emit a tautological 'maximum or fewer' clue.
+                for (let n = 1; n < boundedMax; n++) variants.push({
+                    truth: actualCount <= n,
+                    text: `${prefixText} 미믹은 ${n}마리 이하야.`,
+                    data: { op: '<=', count: n }
+                });
+                const baseWeight = weight / Math.max(1, variants.length);
+                for (const variant of variants) {
+                    // Boundary clues are rare in standard mode; random mode keeps normal frequency.
+                    const variantWeight = variant.decisiveMaximum && !isRandomMode ? baseWeight * 0.12 : baseWeight;
+                    addStmt(variant.truth, type, variant.text, { ...variant.data, ...dataTemplate }, variantWeight, tags);
+                }
             };
 
             if (isRandomMode) {
