@@ -692,7 +692,7 @@
         // --- Generation Engine (Preserved logic with weight adjustments) ---
         function getGridLayout(n) {
             const rowCountsBySize = {
-                3: [3], 4: [4], 5: [3, 2], 6: [3, 3], 7: [4, 3], 8: [4, 4],
+                3: [1, 2], 4: [4], 5: [2, 1, 2], 6: [3, 3], 7: [2, 3, 2], 8: [4, 4],
                 9: [3, 3, 3], 10: [4, 2, 4], 11: [4, 3, 4], 12: [4, 4, 4],
                 13: [5, 3, 5], 14: [5, 4, 5], 15: [5, 5, 5], 16: [6, 4, 6],
                 17: [6, 5, 6], 18: [6, 6, 6]
@@ -738,9 +738,10 @@
         // Odd-row offset hex coordinates: each chest has up to six real neighbors.
         function getHexNeighbors(layout, index) {
             const [row, col] = layout.pos[index];
+            // A1-B2처럼 화면에서 대각선으로 맞닿는 상자도 서로 이웃으로 계산합니다.
             const offsets = row % 2 === 0
-                ? [[0, -1], [0, 1], [-1, -1], [-1, 0], [1, -1], [1, 0]]
-                : [[0, -1], [0, 1], [-1, 0], [-1, 1], [1, 0], [1, 1]];
+                ? [[0, -1], [0, 1], [-1, 0], [-1, 1], [1, 0], [1, 1]]
+                : [[0, -1], [0, 1], [-1, -1], [-1, 0], [1, -1], [1, 0]];
             const byCoord = new Map(layout.pos.map(([r, c], i) => [`${r},${c}`, i]));
             return offsets.map(([dr, dc]) => byCoord.get(`${row + dr},${col + dc}`))
                 .filter(i => i !== undefined);
