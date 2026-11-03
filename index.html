@@ -748,7 +748,9 @@
                 
                 isRandomMode = isRandom;
                 let actualTricksterMode = tricksterMode;
-                if (tricksterSegment === 3 && Math.random() >= 0.05) actualTricksterMode = 'none';
+                if (tricksterSegment === 3) {
+                    actualTricksterMode = Math.random() < 0.05 ? 'hidden-present' : 'hidden-absent';
+                }
                 let puzzle = generatePuzzle(calcChests, calcMimics, rawTreasures, isBoss, sleepIndices, actualTricksterMode);
                 if (!puzzle) {
                     // Keep the current floor/progression if randomized clue generation exhausts its attempts.
@@ -1497,7 +1499,7 @@
             const needsTrickster = tricksterMode === 'required' || tricksterMode === 'optional';
             if (needsTrickster && awakeIndices.length < 2) return null;
 
-            const generateAttempts = (withTrickster) => {
+            const generateAttempts = (withTrickster, validateNoTrickster, validateTrickster) => {
                 for (let attempt = 0; attempt < 500; attempt++) {
                     const actualRoles = generateRoles(numChests, numMimics);
                     const actualColors = getRandomColors(numChests);
@@ -1526,10 +1528,15 @@
                         );
                         const isTrickster = i === tricksterIdx;
                         const targetIsMimic = isTrickster && actualRoles[copyTargetIdx] === 'M';
-                        const possible = actualRoles[i] === 'T'
+                        let possible = actualRoles[i] === 'T'
                             ? pools.truthCandidates
                             : pools.falseCandidates;
 
+                        if (isTrickster && targetIsMimic) {
+                            possible = possible.filter(stmt =>
+                                findComplementaryStatement(stmt, pools.falseCandidates) !== null
+                            );
+                        }
                         if (!possible.length) { success = false; break; }
                         let picked = weightedRandomSelect(
                             possible, historyTags, confirmedIndices, numChests, isBoss
@@ -1566,10 +1573,8 @@
                         return true;
                     };
 
-                    if (tricksterMode === 'none' || tricksterMode === 'optional') {
-                        if (!checkScenario(-1, -1)) continue;
-                    }
-                    if (withTrickster || tricksterMode === 'optional') {
+                    if (validateNoTrickster && !checkScenario(-1, -1)) continue;
+                    if (validateTrickster) {
                         for (const candidateIdx of awakeIndices) {
                             for (let target = 0; target < numChests; target++) {
                                 if (target === candidateIdx) continue;
@@ -1598,14 +1603,21 @@
                 return null;
             };
 
-            const primary = tricksterMode === 'none'
-                ? generateAttempts(false)
-                : generateAttempts(true);
+            const actualWithTrickster =
+                tricksterMode === 'required' || tricksterMode === 'hidden-present';
+            const validateNoTrickster =
+                tricksterMode === 'none' || tricksterMode === 'hidden-present' || tricksterMode === 'hidden-absent';
+            const validateTrickster =
+                tricksterMode === 'required' || tricksterMode === 'hidden-present' || tricksterMode === 'hidden-absent';
+
+            const primary = generateAttempts(
+                actualWithTrickster, validateNoTrickster, validateTrickster
+            );
             if (primary) return primary;
 
             // 흉내쟁이 조건 생성이 500회 안에 실패하면 일반 퍼즐로 안전하게 대체합니다.
             if (tricksterMode !== 'none') {
-                return generateAttempts(false);
+                return generateAttempts(false, true, false);
             }
             return null;
         }
