@@ -137,7 +137,7 @@
         <!-- Header -->
         <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
-                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v0.8</span>
+                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v0.9</span>
             </h1>
             <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
@@ -950,7 +950,7 @@
                 const variants = [];
                 for (let n = 0; n <= boundedMax; n++) variants.push({
                     truth: actualCount === n,
-                    text: n === 0 ? `${prefixText} 미믹이 없어.` : `${prefixText} 미믹은 정확히 ${n}마리야.`,
+                    text: n === 0 && type === 'GLOBAL_M_COUNT' ? '이 맵 전체의 미믹 수는 정확히 0마리야.' : n === 0 ? `${prefixText} 미믹이 없어.` : `${prefixText} 미믹은 정확히 ${n}마리야.`,
                     data: { op: '==', count: n },
                     decisiveMaximum: n === publicMaxMimics && publicMaxMimics > 0
                 });
@@ -977,9 +977,6 @@
             if (isRandomMode) {
                 let maxMimics = Math.max(1, Math.floor((num - 1) / 2));
                 addCountStmts(totalM, maxMimics, 'GLOBAL_M_COUNT', '이 맵 전체에는', {}, 12, ['global_count']);
-                addStmt(totalM === 0, 'GLOBAL_M_EXIST', '이 맵 전체에는 미믹이 없어.', { hasMimic: false }, 1.2, []);
-                addStmt(totalM > 0, 'GLOBAL_M_EXIST', '이 맵 전체에는 미믹이 있어.', { hasMimic: true }, 1.2, []);
-                addStmt(totalM === 0, 'GLOBAL_M_EXIST', '이 맵 전체에는 미믹이 있어.', { hasMimic: true }, 1.2, []);
                 const isEven = (totalM % 2 === 0);
                 addStmt(isEven, 'GLOBAL_M_PARITY', `이 맵 전체의 미믹 개수는 짝수(0 포함)야.`, { parity: 0 }, 10, ['global_count']);
                 addStmt(!isEven, 'GLOBAL_M_PARITY', `이 맵 전체의 미믹 개수는 홀수야.`, { parity: 1 }, 10, ['global_count']);
@@ -1152,7 +1149,6 @@
                 const stmt = statements[i]; const assumesTruth = (combo[i] === 'T'); let isTrue = false;
                 switch(stmt.type) {
                     case 'GLOBAL_M_COUNT': isTrue = evaluateOp(combo.filter(r => r === 'M').length, stmt.op, stmt.count); break;
-                    case 'GLOBAL_M_EXIST': isTrue = stmt.hasMimic ? combo.some(r => r === 'M') : combo.every(r => r !== 'M'); break;
                     case 'GLOBAL_M_PARITY': isTrue = (combo.filter(r => r === 'M').length % 2 === stmt.parity); break;
                     case 'COLOR_M': case 'GROUP_M_COUNT': let gCount = (stmt.type === 'COLOR_M') ? colorCounts[stmt.color].M : stmt.group.filter(idx => combo[idx] === 'M').length; isTrue = evaluateOp(gCount, stmt.op, stmt.count); break;
                     case 'COLOR_PARITY': isTrue = (colorCounts[stmt.color].M % 2 === stmt.parity); break;
@@ -1303,7 +1299,7 @@
             const horizontalScroller = document.createElement('div');
             horizontalScroller.className = "w-full max-w-full overflow-x-auto overflow-y-visible pt-4 pb-2";
             const rowsWrapper = document.createElement('div');
-            rowsWrapper.className = "flex flex-col gap-4 items-center w-max min-w-full";
+            rowsWrapper.className = "flex flex-col gap-2 items-center w-max min-w-full";
             horizontalScroller.appendChild(rowsWrapper);
             targetContainer.appendChild(horizontalScroller);
             const numChests = boardData.length;
@@ -1324,9 +1320,9 @@
                 const rowContainer = document.createElement('div');
                 rowContainer.className = "grid justify-center items-start w-max mx-auto shrink-0";
                 const isWideScreen = window.matchMedia('(min-width: 768px)').matches;
-                // 사각형은 상자 간 여백을 넉넉히 두고, 벌집형은 2개 트랙을 한 상자 폭으로 묶어
-                // 공백 셀이 과도하게 벌어져 보이지 않도록 실제 상자 중심 간격을 맞춥니다.
-                const gridTrack = layout.honeycomb ? (isWideScreen ? 4.625 : 4.375) : (isWideScreen ? 10 : 9.5);
+                // 실제 상자 래퍼 폭(8rem)에 맞춰 트랙을 줄여 화면에서 상자 사이 간격을 축소합니다.
+                // 벌집형은 상자당 2트랙이므로 4rem, 일반형은 8.5rem으로 설정합니다.
+                const gridTrack = layout.honeycomb ? 4 : 8.5;
                 rowContainer.style.gridTemplateColumns = `repeat(${layout.honeycomb ? layout.cols * 2 : layout.cols}, ${gridTrack}rem)`;
                 rowContainer.style.columnGap = '0px';
                 rowContainer.style.flexShrink = "0";
