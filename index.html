@@ -137,7 +137,7 @@
         <!-- Header -->
         <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
-                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v1.1</span>
+                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v1.2</span>
             </h1>
             <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
@@ -928,7 +928,6 @@
                 if (type === 'RANDOM_MIMIC_COUNT' && data.kind === 'count') { countGroup = Array.from({ length: num }, (_, i) => i); countOp = data.op; countValue = data.count; }
                 else if (type === 'COLOR_M') { countGroup = chestColors.map((v, i) => v === data.color ? i : -1).filter(i => i >= 0); countOp = data.op; countValue = data.count; }
                 else if (type === 'GROUP_M_COUNT') { countGroup = [...(data.group || [])]; countOp = data.op; countValue = data.count; }
-                else if (type === 'GLOBAL_M_EXIST') { countGroup = Array.from({ length: num }, (_, i) => i); countOp = data.hasMimic ? '>' : '=='; countValue = 0; }
                 else if (type === 'GROUP_M_EXIST') { countGroup = [...(data.group || [])]; countOp = data.hasMimic ? '>' : '=='; countValue = 0; }
                 else if (type === 'NOT_COLOR_M') { countGroup = chestColors.map((v, i) => v !== data.color ? i : -1).filter(i => i >= 0); countOp = data.hasMimic ? '>' : '=='; countValue = 0; }
 
@@ -980,16 +979,28 @@
                 const addRandomCount = (truth, text, data) =>
                     addStmt(truth, 'RANDOM_MIMIC_COUNT', text, data, countWeight, ['random_mimic_count']);
 
-                // 전체 미믹 수: 0마리 발언은 아직 지원하지 않고 1마리 이상만 생성합니다.
+                // 동일한 수학 조건은 후보에 한 번만 등록하고, 표현만 무작위로 고릅니다.
                 for (let n = 1; n <= maxMimics; n++) {
-                    addRandomCount(totalM === n, `이 맵 전체의 미믹은 ${n}마리야.`, { kind: 'count', op: '==', count: n });
-                    addRandomCount(totalM === n, `이 맵 전체의 미믹 수는 정확히 ${n}마리야.`, { kind: 'count', op: '==', count: n });
-                    addRandomCount(totalM >= n, `이 맵 전체의 미믹 수는 ${n}마리 이상이야.`, { kind: 'count', op: '>=', count: n });
-                    addRandomCount(totalM < n, `이 맵 전체의 미믹 수는 ${n}마리 미만이야.`, { kind: 'count', op: '<', count: n });
-                    if (n < maxMimics) {
-                        addRandomCount(totalM <= n, `이 맵 전체의 미믹 수는 ${n}마리 이하여.`, { kind: 'count', op: '<=', count: n });
-                        addRandomCount(totalM > n, `이 맵 전체의 미믹 수는 ${n}마리 초과야.`, { kind: 'count', op: '>', count: n });
-                    }
+                    const exactText = Math.random() < 0.5
+                        ? `이 맵 전체의 미믹은 ${n}마리야.`
+                        : `이 맵 전체의 미믹 수는 정확히 ${n}마리야.`;
+                    addRandomCount(totalM === n, exactText, { kind: 'count', op: '==', count: n });
+                }
+
+                // 이상(>= n) 또는 초과(> n-1) 중 한 문구만 선택해 같은 조건의 중복을 막습니다.
+                for (let n = 1; n <= maxMimics; n++) {
+                    const lowerText = Math.random() < 0.5
+                        ? `이 맵 전체의 미믹 수는 ${n}마리 이상이야.`
+                        : `이 맵 전체의 미믹 수는 ${n - 1}마리 초과야.`;
+                    addRandomCount(totalM >= n, lowerText, { kind: 'count', op: '>=', count: n });
+                }
+
+                // 이하(<= n) 또는 미만(< n+1) 중 한 문구만 선택합니다.
+                for (let n = 1; n < maxMimics; n++) {
+                    const upperText = Math.random() < 0.5
+                        ? `이 맵 전체의 미믹 수는 ${n}마리 이하여.`
+                        : `이 맵 전체의 미믹 수는 ${n + 1}마리 미만이야.`;
+                    addRandomCount(totalM <= n, upperText, { kind: 'count', op: '<=', count: n });
                 }
                 const isEven = totalM % 2 === 0;
                 addRandomCount(isEven, '이 맵 전체의 미믹 수는 짝수야.', { kind: 'parity', parity: 0 });
