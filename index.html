@@ -14,6 +14,40 @@
         .mimic-result-reveal { outline: 2px solid rgba(220,38,38,0.65); outline-offset: 2px; animation: mimicReveal 0.32s ease-out; }
         .treasure-result-reveal { outline: 2px solid rgba(5,150,105,0.55); outline-offset: 2px; animation: treasureReveal 0.55s ease-out both; }
         @media (prefers-reduced-motion: reduce) { .mimic-result-reveal, .treasure-result-reveal { animation: none; } }
+
+        .screen-effect-overlay {
+            position: fixed; inset: 0; z-index: 9999; pointer-events: none;
+            overflow: hidden; animation: screenEffectFade 1.55s ease-out forwards;
+        }
+        .screen-effect-overlay.clear {
+            background: radial-gradient(circle at center, rgba(255,255,255,.78), rgba(250,204,21,.22) 42%, transparent 76%);
+            box-shadow: inset 0 0 0 9999px rgba(255,255,255,.16);
+        }
+        .screen-effect-overlay.mimic {
+            background: radial-gradient(circle at center, rgba(248,113,113,.34), rgba(153,27,27,.22) 62%, transparent 100%);
+            box-shadow: inset 0 0 0 9999px rgba(220,38,38,.18);
+        }
+        .screen-effect-particle {
+            position: absolute; left: var(--x); top: var(--y);
+            width: var(--size); height: var(--size); border-radius: 50%;
+            background: var(--particle-color); opacity: 0;
+            box-shadow: 0 0 9px var(--particle-color);
+            animation: screenParticleDrift 1.4s cubic-bezier(.12,.65,.28,1) forwards;
+        }
+        @keyframes screenEffectFade {
+            0% { opacity: 0; }
+            12% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        @keyframes screenParticleDrift {
+            0% { opacity: 0; transform: translate(0,0) scale(.35); }
+            14% { opacity: .95; }
+            72% { opacity: .65; }
+            100% { opacity: 0; transform: translate(var(--dx),var(--dy)) scale(.1); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .screen-effect-overlay, .screen-effect-particle { animation-duration: .01ms !important; }
+        }
         
         @keyframes bounceIn {
             0% { transform: scale(0.1); opacity: 0; }
@@ -137,7 +171,7 @@
         <!-- Header -->
         <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
-                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">0.26</span>
+                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">0.27</span>
             </h1>
             <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
@@ -1915,9 +1949,34 @@
             return null;
         }
 
+        function triggerScreenEffect(type) {
+            const overlay = document.createElement('div');
+            overlay.className = `screen-effect-overlay ${type}`;
+            const palette = type === 'clear'
+                ? ['#fef08a', '#ffffff', '#fde68a', '#a7f3d0']
+                : ['#fecaca', '#ef4444', '#991b1b', '#ffffff'];
+            for (let i = 0; i < 38; i++) {
+                const particle = document.createElement('span');
+                particle.className = 'screen-effect-particle';
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 70 + Math.random() * 230;
+                particle.style.setProperty('--x', (8 + Math.random() * 84) + 'vw');
+                particle.style.setProperty('--y', (8 + Math.random() * 84) + 'vh');
+                particle.style.setProperty('--dx', (Math.cos(angle) * distance) + 'px');
+                particle.style.setProperty('--dy', (Math.sin(angle) * distance) + 'px');
+                particle.style.setProperty('--size', (3 + Math.random() * 7) + 'px');
+                particle.style.setProperty('--particle-color', palette[Math.floor(Math.random() * palette.length)]);
+                particle.style.animationDelay = (Math.random() * 0.16) + 's';
+                overlay.appendChild(particle);
+            }
+            document.body.appendChild(overlay);
+            overlay.addEventListener('animationend', () => overlay.remove(), { once: true });
+        }
+
         function gameOver(isWin) {
             isGameOver = true;
             if (isWin) {
+                triggerScreenEffect('clear');
                 isFloorCleared = true;
                 const bossReward = awardSegmentBossRewards();
                 statusMsg.innerText = bossReward
@@ -1926,6 +1985,7 @@
                 statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-indigo-600 drop-shadow-sm scale-105 transition-transform";
                 btnNextFloor.classList.remove('hidden'); btnRestart.classList.add('hidden');
             } else {
+                triggerScreenEffect('mimic');
                 isFloorCleared = false;
                 statusMsg.innerText = "미믹에게 먹혔습니다! 게임 오버... ☠️";
                 statusMsg.className = "text-center text-lg font-bold mb-4 h-7 text-red-600 drop-shadow-sm scale-105 transition-transform animate-pulse";
