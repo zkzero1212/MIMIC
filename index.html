@@ -137,7 +137,7 @@
         <!-- Header -->
         <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
-                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">0.24</span>
+                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">0.25</span>
             </h1>
             <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
@@ -308,7 +308,7 @@
         window.getGameState = () => {
             return {
                 currentFloor, maxFloor, permCurses, eventState,
-                bossRewardRulesVersion: 2,
+                bossRewardRulesVersion: 3,
                 segmentChestBonus, segmentMimicBonus, bossRewardsClaimedFloors,
                 chestsData, currentGridLayout, totalOpened, totalTrueChests, isGameOver, isFloorCleared,
                 currentTempCurses, tempBuffs, currentEventLogs, isRandomMode, isLuckEvent,
@@ -320,30 +320,16 @@
             currentFloor = Math.max(1, Number(data.currentFloor) || 1);
             maxFloor = Math.max(1, Number(data.maxFloor) || 1);
             permCurses = data.permCurses || { random: false, sleepLevel: 0, addChests: 0, addMimics: 0 };
-            eventState = data.eventState || { initialChance: 15, chance: 15, triggerCount: 0, missCount: 0 };
+            eventState = data.eventState || { initialChance: 25, chance: 25, triggerCount: 0, missCount: 0 };
             eventState.triggerCount = Math.max(0, Number(eventState.triggerCount) || 0);
             eventState.missCount = Math.max(0, Number(eventState.missCount) || 0);
-            eventState.initialChance = 15;
+            eventState.initialChance = 25;
             eventState.chance = getEventChance(currentFloor);
-            let completedBossesForMigration = 0;
-            for (let bossFloor = 4; bossFloor <= currentFloor; bossFloor += 5) {
-                if (bossFloor < currentFloor || (bossFloor === currentFloor && data.isFloorCleared)) {
-                    completedBossesForMigration++;
-                }
-            }
-            if (data.bossRewardRulesVersion === 2) {
-                segmentChestBonus = Math.max(0, Number(data.segmentChestBonus) || 0);
-                segmentMimicBonus = Math.max(0, Number(data.segmentMimicBonus) || 0);
-                bossRewardsClaimedFloors = Array.isArray(data.bossRewardsClaimedFloors)
-                    ? data.bossRewardsClaimedFloors : [];
-            } else {
-                // 구버전 보상은 새 규칙에 맞춰 재계산: 첫 보스는 미믹만, 이후 보스는 미믹+상자.
-                segmentMimicBonus = completedBossesForMigration;
-                segmentChestBonus = Math.max(0, completedBossesForMigration - 1);
-                bossRewardsClaimedFloors = Array.from(
-                    { length: completedBossesForMigration }, (_, i) => 4 + i * 5
-                );
-            }
+
+            // 구버전 저장 데이터의 보스 보너스도 새 규칙에서는 제거합니다.
+            segmentChestBonus = 0;
+            segmentMimicBonus = 0;
+            bossRewardsClaimedFloors = [];
             localStorage.setItem('mimicMaxFloor', maxFloor);
             
             const savedChests = data.chestsData || [];
@@ -407,7 +393,7 @@
         let maxFloor = localStorage.getItem('mimicMaxFloor') || 1;
 
         let baseChests = 4;
-        let baseMimics = 1;
+        let baseMimics = 2;
         function isBossFloor(floor) {
             return floor >= 4 && (floor - 4) % 5 === 0;
         }
@@ -436,21 +422,19 @@
         };
 
         let eventState = {
-            initialChance: 15,
-            chance: 15,
+            initialChance: 25,
+            chance: 25,
             triggerCount: 0,
             missCount: 0
         };
 
-        // 6~10층(2구간)은 기본 15%, 이후 구간마다 기본확률 +5%p.
-        // 발생 보너스와 미발생 보너스는 구간 번호에 따라 각각 가중됩니다.
+        // 기본 25% + 구간별 10%p, 발생 누적 +5%p, 미발생 누적은 구간당 +10%p.
         function getEventChance(floor = currentFloor) {
             const segmentNumber = Math.max(2, Math.floor((floor - 1) / 5) + 1);
-            const segmentWeight = segmentNumber - 1;
-            const segmentBaseChance = 15 + (segmentNumber - 2) * 5;
-            const permanentBonus = eventState.triggerCount * segmentWeight;
-            const temporaryBonus = eventState.missCount * segmentWeight;
-            return Math.min(100, segmentBaseChance + permanentBonus + temporaryBonus);
+            const baseChance = 25 + (segmentNumber - 2) * 10;
+            const triggerBonus = eventState.triggerCount * 5;
+            const missBonus = eventState.missCount * 10 * (segmentNumber - 1);
+            return Math.min(100, baseChance + triggerBonus + missBonus);
         }
 
         let currentTempCurses = {};
@@ -480,15 +464,15 @@
         const rawTreasures = ['골드', '아이템', '장비', '유물', '보석'];
 
         const EVENT_TYPES = [
-            { id: 'TEMP_CHESTS', type: 'temp', text: '이번 층 상자 수 2개 증가' },
-            { id: 'TEMP_MIMICS', type: 'temp', text: '이번 층 미믹 수 1개 증가' },
-            { id: 'TEMP_SLEEP', type: 'temp', text: '이번 층 잠자는 상자 2개 증가' },
+            { id: 'TEMP_CHESTS', type: 'temp', text: '이번 층 상자 +1' },
+            { id: 'TEMP_MIMICS', type: 'temp', text: '이번 층 미믹 +1' },
+            { id: 'TEMP_SLEEP', type: 'temp', text: '이번 층 수면 상자 +1' },
             { id: 'TEMP_RANDOM', type: 'temp', text: '이번 층 미믹 수 랜덤화' },
             { id: 'TRICKSTER', type: 'temp', text: '이번 층에 흉내쟁이가 있습니다' },
-            { id: 'PERM_CHESTS', type: 'perm', text: '이후 모든 층 상자 수 1개 증가' },
-            { id: 'PERM_MIMICS', type: 'perm', text: '이후 모든 층 미믹 수 1개 증가' },
-            { id: 'PERM_RANDOM', type: 'perm', text: '영구 미믹 랜덤화 활성' },
-            { id: 'PERM_SLEEP', type: 'perm', text: '영구 수면 저주 1단계 강화' }
+            { id: 'PERM_CHESTS', type: 'perm', text: '영구 상자 +1' },
+            { id: 'PERM_MIMICS', type: 'perm', text: '영구 미믹 +1' },
+            { id: 'PERM_SLEEP', type: 'perm', text: '영구 수면 저주 +1' },
+            { id: 'PERM_RANDOM', type: 'perm', text: '영구 미믹 랜덤화 활성' }
         ];
 
         // DOM
@@ -516,7 +500,7 @@
             currentFloor = 1;
             currentGridLayout = null;
             baseChests = 4;
-            baseMimics = 1;
+            baseMimics = 2;
             segmentChestBonus = 0;
             segmentMimicBonus = 0;
             bossRewardsClaimedFloors = [];
@@ -527,29 +511,48 @@
         }
 
         function drawEvent() {
-            let pool = EVENT_TYPES.filter(e => {
-                if (e.id === 'TRICKSTER' && (currentFloor < 6 || currentFloor > 10)) return false;
-                if ((e.id === 'PERM_RANDOM' || e.id === 'TEMP_RANDOM') && permCurses.random) return false;
-                if ((e.id === 'PERM_MIMICS' || e.id === 'TEMP_MIMICS') && permCurses.addMimics > 0) return false;
-                if ((e.id === 'PERM_CHESTS' || e.id === 'TEMP_CHESTS') && permCurses.addChests > 0) return false;
-                if ((e.id === 'PERM_SLEEP' || e.id === 'TEMP_SLEEP') && permCurses.sleepLevel > 0) return false;
-                return true;
-            });
-            if (pool.length === 0) return { id: 'TEMP_SLEEP', type: 'temp', text: '이번 층 잠자는 상자 1개 증가 (대체)' };
+            const poolType = Math.random() < 0.9 ? 'temp' : 'perm';
+            const pool = EVENT_TYPES.filter(event =>
+                event.type === poolType &&
+                (event.id !== 'TRICKSTER' || (currentFloor >= 6 && currentFloor <= 10))
+            );
+            if (!pool.length) return null;
             return pool[Math.floor(Math.random() * pool.length)];
         }
 
         function applyEvent(ev) {
+            if (!ev) return;
             currentEventLogs.push(`⚠️ [이벤트] ${ev.text}`);
-            if (ev.id === 'TEMP_CHESTS') currentTempCurses.addChests = (currentTempCurses.addChests || 0) + 2;
-            if (ev.id === 'TEMP_MIMICS') currentTempCurses.addMimics = (currentTempCurses.addMimics || 0) + 1;
-            if (ev.id === 'TEMP_SLEEP') currentTempCurses.addSleep = (currentTempCurses.addSleep || 0) + 2;
-            if (ev.id === 'TEMP_RANDOM') currentTempCurses.random = true;
-            if (ev.id === 'TRICKSTER') currentTempCurses.trickster = true;
-            if (ev.id === 'PERM_CHESTS') permCurses.addChests += 1;
-            if (ev.id === 'PERM_MIMICS') permCurses.addMimics += 1;
-            if (ev.id === 'PERM_RANDOM') permCurses.random = true;
-            if (ev.id === 'PERM_SLEEP') permCurses.sleepLevel += 1;
+
+            switch (ev.id) {
+                case 'TEMP_CHESTS':
+                    currentTempCurses.addChests = (currentTempCurses.addChests || 0) + 1;
+                    break;
+                case 'TEMP_MIMICS':
+                    currentTempCurses.addMimics = (currentTempCurses.addMimics || 0) + 1;
+                    break;
+                case 'TEMP_SLEEP':
+                    currentTempCurses.addSleep = (currentTempCurses.addSleep || 0) + 1;
+                    break;
+                case 'TEMP_RANDOM':
+                    currentTempCurses.random = true;
+                    break;
+                case 'TRICKSTER':
+                    currentTempCurses.trickster = true;
+                    break;
+                case 'PERM_CHESTS':
+                    permCurses.addChests += 1;
+                    break;
+                case 'PERM_MIMICS':
+                    permCurses.addMimics += 1;
+                    break;
+                case 'PERM_SLEEP':
+                    permCurses.sleepLevel += 1;
+                    break;
+                case 'PERM_RANDOM':
+                    permCurses.random = true;
+                    break;
+            }
         }
 
         function showRestArea() {
@@ -712,9 +715,9 @@
 
             const baseChestCount = currentFloor <= 3 ? [4, 5, 6][currentFloor - 1] : 6;
             let calcChests = baseChestCount +
-                segmentChestBonus + permCurses.addChests + (currentTempCurses.addChests || 0);
-            let calcMimics = baseMimics + Math.floor((currentFloor - 1) / 20) +
-                segmentMimicBonus + permCurses.addMimics + (currentTempCurses.addMimics || 0);
+                permCurses.addChests + (currentTempCurses.addChests || 0);
+            let calcMimics = baseMimics +
+                permCurses.addMimics + (currentTempCurses.addMimics || 0);
             
             let isRandom = (permCurses.random || currentTempCurses.random || isBoss) && !tempBuffs.preventRandom;
             
@@ -1559,13 +1562,33 @@
                     if (!success || selectedStatements.length !== numChests) continue;
 
                     const solutionKeys = new Set();
-                    const checkScenario = (candidateTrickster, candidateTarget) => {
+                    const checkScenario = (candidateTrickster) => {
                         for (const combo of combos) {
                             if (candidateTrickster >= 0 && combo[candidateTrickster] !== 'T') continue;
-                            if (testStatementsCombination(
-                                selectedStatements, combo, actualColors, layout, treasurePlan,
-                                sleepIndices, candidateTrickster, candidateTarget
-                            )) {
+
+                            const candidateTargets = candidateTrickster < 0
+                                ? [-1]
+                                : [
+                                    combo.findIndex((role, idx) =>
+                                        idx !== candidateTrickster && role === 'T'
+                                    ),
+                                    combo.findIndex((role, idx) =>
+                                        idx !== candidateTrickster && role === 'M'
+                                    )
+                                ].filter(idx => idx >= 0);
+
+                            let scenarioMatches = false;
+                            for (const candidateTarget of candidateTargets) {
+                                if (testStatementsCombination(
+                                    selectedStatements, combo, actualColors, layout, treasurePlan,
+                                    sleepIndices, candidateTrickster, candidateTarget
+                                )) {
+                                    scenarioMatches = true;
+                                    break;
+                                }
+                            }
+
+                            if (scenarioMatches) {
                                 solutionKeys.add(
                                     `${combo.join('')}: ${candidateTrickster < 0 ? 'none' : candidateTrickster}`
                                 );
@@ -1575,20 +1598,16 @@
                         return true;
                     };
 
-                    if (validateNoTrickster && !checkScenario(-1, -1)) continue;
+                    if (validateNoTrickster && !checkScenario(-1)) continue;
                     if (validateTrickster) {
+                        let multipleSolutions = false;
                         for (const candidateIdx of awakeIndices) {
-                            // 복제 대상의 위치 자체는 진릿값에 영향을 주지 않습니다.
-                            // 각 후보 미믹 배치에서 대상이 T인 경우와 M인 경우만 각각 검사하면 전수 검증과 같습니다.
-                            for (const targetRole of ['T', 'M']) {
-                                const target = combo.findIndex((role, idx) =>
-                                    idx !== candidateIdx && role === targetRole
-                                );
-                                if (target < 0) continue;
-                                if (!checkScenario(candidateIdx, target)) break;
+                            if (!checkScenario(candidateIdx)) {
+                                multipleSolutions = true;
+                                break;
                             }
-                            if (solutionKeys.size > 1) break;
                         }
+                        if (multipleSolutions) continue;
                     }
 
                     if (solutionKeys.size === 1) {
@@ -1891,16 +1910,8 @@
         }
 
         function awardSegmentBossRewards() {
-            if (!isBossFloor(currentFloor) || bossRewardsClaimedFloors.includes(currentFloor)) return;
-            segmentMimicBonus += 1;
-            let rewardText = "보스 전용 영구 미믹 +1";
-            if (currentFloor >= 9) {
-                segmentChestBonus += 1;
-                rewardText += " / 보스 전용 영구 상자 +1";
-            }
-            bossRewardsClaimedFloors.push(currentFloor);
-            currentEventLogs.push(`🏆 [보스 보상] ${rewardText}`);
-            return rewardText;
+            // 보스 클리어는 상자/미믹 기본 개수에 영구 보너스를 부여하지 않습니다.
+            return null;
         }
 
         function gameOver(isWin) {
