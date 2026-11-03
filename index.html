@@ -137,7 +137,7 @@
         <!-- Header -->
         <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
-                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">0.17</span>
+                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">0.18</span>
             </h1>
             <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
@@ -953,7 +953,7 @@
 
             const addCountStmts = (actualCount, maxCount, type, prefixText, dataTemplate, weight = 10, tags = []) => {
                 // Standard mode uses the disclosed mimic count; random mode uses the board's maximum possible count.
-                const publicMaxMimics = isRandomMode ? Math.max(1, Math.floor((num - 1) / 2)) : totalM;
+                const publicMaxMimics = isRandomMode ? Math.max(1, Math.floor(num / 2)) : totalM;
                 const boundedMax = Math.min(maxCount, publicMaxMimics);
                 const variants = [];
                 for (let n = 0; n <= boundedMax; n++) variants.push({
@@ -983,7 +983,7 @@
             };
 
             if (isRandomMode) {
-                const maxMimics = Math.max(1, Math.floor((num - 1) / 2));
+                const maxMimics = Math.max(1, Math.floor(num / 2));
                 const countWeight = 10;
                 const colorTypeCount = presentColors.length;
                 const randomCountPredicateKeys = new Set();
@@ -1042,15 +1042,13 @@
             }
 
             const actualAdj = checkAdjacency(roles, layout);
-            addStmt(actualAdj === true, 'ADJACENCY_M', '이 맵에는 서로 이웃한 미믹이 있어.', { hasAdj: true }, 8, ['global']);
-            addStmt(actualAdj === false, 'ADJACENCY_M', '이 맵에는 서로 이웃한 미믹이 없어.', { hasAdj: false }, 8, ['global']);
+            addStmt(actualAdj === true, 'ADJACENCY_M', '인접한 미믹이 있어.', { hasAdj: true }, 8, ['global']);
+            addStmt(actualAdj === false, 'ADJACENCY_M', '인접한 미믹이 없어.', { hasAdj: false }, 8, ['global']);
 
             // Peer / Mimic Position: inspect every actual hex-neighbor, not only one direction.
             const peerGroup = getHexNeighbors(layout, speakerIdx);
             if (peerGroup.length > 0) {
                 const peerMimicCount = peerGroup.filter(idx => roles[idx] === 'M').length;
-                addCountStmts(peerMimicCount, peerGroup.length, 'GROUP_M_COUNT',
-                    '내 주위에는', { group: peerGroup }, 7, ['peer:hex']);
                 addStmt(peerMimicCount > 0, 'GROUP_M_EXIST', '내 주위에는 미믹이 있어.',
                     { group: peerGroup, hasMimic: true }, 6, ['peer:hex']);
                 addStmt(peerMimicCount === 0, 'GROUP_M_EXIST', '내 주위에는 미믹이 없어.',
@@ -1158,11 +1156,33 @@
             }
             if (totalM > 1) {
                 const mRows = new Set(); roles.forEach((r, i) => { if (r === 'M') mRows.add(layout.pos[i][0]); });
-                addStmt(mRows.size === totalM, 'ALL_DIFF_ROWS', '미믹들이 모두 서로 다른 행에 흩어져 있어.', { diff: true }, 4, ['global']);
-                addStmt(mRows.size < totalM, 'ALL_DIFF_ROWS', '같은 행에 미믹이 2마리 이상 모인 곳이 있어.', { diff: false }, 4, ['global']);
                 const mCols = new Set(); roles.forEach((r, i) => { if (r === 'M') mCols.add(layout.pos[i][1]); });
-                addStmt(mCols.size === totalM, 'ALL_DIFF_COLS', '미믹들이 모두 서로 다른 열에 흩어져 있어.', { diff: true }, 4, ['global']);
-                addStmt(mCols.size < totalM, 'ALL_DIFF_COLS', '같은 열에 미믹이 2마리 이상 모인 곳이 있어.', { diff: false }, 4, ['global']);
+                const rowAdjacentPairs = [];
+                const colAdjacentPairs = [];
+                for (let i = 0; i < num; i++) {
+                    for (const j of getAdjacentNeighbors(layout, i)) {
+                        if (j <= i) continue;
+                        const [ri, ci] = layout.pos[i];
+                        const [rj, cj] = layout.pos[j];
+                        if (ri === rj) rowAdjacentPairs.push([i, j]);
+                        if (ci === cj) colAdjacentPairs.push([i, j]);
+                    }
+                }
+                const rowHasAdjacentMimics = rowAdjacentPairs.some(([a, b]) => roles[a] === 'M' && roles[b] === 'M');
+                const colHasAdjacentMimics = colAdjacentPairs.some(([a, b]) => roles[a] === 'M' && roles[b] === 'M');
+                const highFloorStatementWeight = 4 * highFloorVariantWeight;
+
+                addStmt(rowHasAdjacentMimics, 'ROW_ADJACENT_M', '같은 행에 인접한 미믹이 있어.', { hasAdj: true }, 4, ['global']);
+                addStmt(!rowHasAdjacentMimics, 'ROW_ADJACENT_M', '같은 행에 인접한 미믹이 없어.', { hasAdj: false }, 4, ['global']);
+                addStmt(colHasAdjacentMimics, 'COL_ADJACENT_M', '같은 열에 인접한 미믹이 있어.', { hasAdj: true }, 4, ['global']);
+                addStmt(!colHasAdjacentMimics, 'COL_ADJACENT_M', '같은 열에 인접한 미믹이 없어.', { hasAdj: false }, 4, ['global']);
+
+                if (highFloorStatementWeight > 0) {
+                    addStmt(mRows.size < totalM, 'ROW_MULTI_M', '같은 행에 미믹이 2마리 이상 모인 곳이 있어.', { hasMultiple: true }, highFloorStatementWeight, ['global']);
+                    addStmt(mRows.size === totalM, 'ROW_MULTI_M', '같은 행에 미믹이 2마리 이상 모인 곳이 없어.', { hasMultiple: false }, highFloorStatementWeight, ['global']);
+                    addStmt(mCols.size < totalM, 'COL_MULTI_M', '같은 열에 미믹이 2마리 이상 모인 곳이 있어.', { hasMultiple: true }, highFloorStatementWeight, ['global']);
+                    addStmt(mCols.size === totalM, 'COL_MULTI_M', '같은 열에 미믹이 2마리 이상 모인 곳이 없어.', { hasMultiple: false }, highFloorStatementWeight, ['global']);
+                }
             }
 
             const itemGroups = [];
@@ -1227,8 +1247,25 @@
                     case 'GROUP_M_EXIST': let gmCount = stmt.group.filter(idx => combo[idx] === 'M').length; isTrue = stmt.hasMimic ? (gmCount > 0) : (gmCount === 0); break;
                     case 'ITEM_GROUP_EXIST': const itemCount = stmt.group.filter(idx => candidateTreasures[idx] === stmt.item).length; isTrue = stmt.hasItem ? itemCount > 0 : itemCount === 0; break;
                     case 'ROW_CMP': let r1M = 0; let r2M = 0; layout.pos.forEach(([r, c], idx) => { if(r === stmt.r1 && combo[idx]==='M') r1M++; if(r === stmt.r2 && combo[idx]==='M') r2M++; }); isTrue = evaluateOp(r1M, stmt.op, r2M); break;
-                    case 'ALL_DIFF_ROWS': let mRows = new Set(); combo.forEach((r, idx) => { if(r === 'M') mRows.add(layout.pos[idx][0]); }); isTrue = stmt.diff ? (mRows.size === combo.filter(r => r === 'M').length) : (mRows.size < combo.filter(r => r === 'M').length); break;
-                    case 'ALL_DIFF_COLS': let mCols = new Set(); combo.forEach((r, idx) => { if(r === 'M') mCols.add(layout.pos[idx][1]); }); isTrue = stmt.diff ? (mCols.size === combo.filter(r => r === 'M').length) : (mCols.size < combo.filter(r => r === 'M').length); break;
+                    case 'ROW_ADJACENT_M':
+                    case 'COL_ADJACENT_M': {
+                        const sameAxis = stmt.type === 'ROW_ADJACENT_M' ? 0 : 1;
+                        isTrue = combo.some((role, idx) => role === 'M' &&
+                            getAdjacentNeighbors(layout, idx).some(other =>
+                                other > idx && combo[other] === 'M' &&
+                                layout.pos[other][sameAxis] === layout.pos[idx][sameAxis]));
+                        isTrue = isTrue === stmt.hasAdj;
+                        break;
+                    }
+                    case 'ROW_MULTI_M':
+                    case 'COL_MULTI_M': {
+                        const axis = stmt.type === 'ROW_MULTI_M' ? 0 : 1;
+                        const occupiedLines = new Set();
+                        combo.forEach((role, idx) => { if (role === 'M') occupiedLines.add(layout.pos[idx][axis]); });
+                        const hasMultiple = occupiedLines.size < combo.filter(role => role === 'M').length;
+                        isTrue = hasMultiple === stmt.hasMultiple;
+                        break;
+                    }
                     case 'ADJACENCY_M': isTrue = (checkAdjacency(combo, layout) === stmt.hasAdj); break;
                     case 'SYMMETRY_M': isTrue = (isMirrorSymmetric(combo, layout) === stmt.isSymmetric); break;
                 }
@@ -1315,7 +1352,7 @@
                 }
                 if (!success || selectedStatements.length !== numChests) continue;
 
-                let validCount = 0; let maxM = Math.max(1, Math.floor((numChests - 1) / 2));
+                let validCount = 0; let maxM = Math.max(1, Math.floor(numChests / 2));
                 let combos = isRandomMode ? getAllCombinations(numChests, maxM) : getCombinations(numChests, numMimics);
                 for (let combo of combos) {
                     if (testStatementsCombination(selectedStatements, combo, actualColors, layout, treasurePlan)) validCount++;
