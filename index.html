@@ -137,7 +137,7 @@
         <!-- Header -->
         <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
-                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">0.16</span>
+                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">0.17</span>
             </h1>
             <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
@@ -1410,7 +1410,7 @@
 
                     const bubble = document.createElement('div');
                     bubble.className = `relative bg-white border ${chest.isOpen && chest.role === 'M' ? 'border-red-300 text-red-600' : chest.isOpen && chest.role === 'T' ? 'border-emerald-300 text-emerald-700' : 'border-slate-200 text-slate-700'} 
-                                        text-[10px] md:text-[11px] px-1.5 py-0.5 rounded-xl mb-1 w-full text-center shadow-sm bubble-arrow font-medium break-keep h-[29px] md:h-[34px] flex items-center justify-center leading-tight overflow-hidden`;
+                                        text-[11px] md:text-xs px-2.5 py-1.5 rounded-xl mb-1.5 w-full text-center shadow-sm bubble-arrow font-medium break-keep h-[58px] md:h-[68px] flex items-center justify-center leading-snug overflow-hidden`;
                     
                     if (chest.isSleeping) bubble.innerHTML = `<span class="text-xl font-bold tracking-widest text-slate-400 animate-pulse">zzZ</span>`;
                     else bubble.innerHTML = `<span>${chest.statement}</span>`;
