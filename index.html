@@ -137,7 +137,7 @@
         <!-- Header -->
         <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
-                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">0.18</span>
+                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">0.19</span>
             </h1>
             <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
@@ -863,12 +863,30 @@
                 .map(p => p.i);
         }
 
-        // 내 주위는 인접 + 대각선에 실제로 존재하는 상자만 포함합니다.
+        // 상하좌우는 공백 셀을 건너 가장 가까운 상자를 찾고, 대각선은 바로 인접한 셀만 찾습니다.
+        function getDirectionalNeighbor(layout, index, dr, dc, skipEmpty = false) {
+            const [row, col] = layout.pos[index];
+            let nextRow = row + dr;
+            let nextCol = col + dc;
+            while (nextRow >= 0 && nextRow < layout.rows && nextCol >= 0 && nextCol < layout.cols) {
+                const found = layout.pos.findIndex(([r, c]) => r === nextRow && c === nextCol);
+                if (found >= 0) return found;
+                if (!skipEmpty) return -1;
+                nextRow += dr;
+                nextCol += dc;
+            }
+            return -1;
+        }
+
+        // 주위는 상하좌우의 다음 상자와 네 대각선의 바로 인접한 상자로 구성합니다.
         function getHexNeighbors(layout, index) {
-            return [...new Set([
-                ...getAdjacentNeighbors(layout, index),
-                ...getDiagonalNeighbors(layout, index)
-            ])];
+            const directions = [
+                [-1, 0, true], [1, 0, true], [0, -1, true], [0, 1, true],
+                [-1, -1, false], [-1, 1, false], [1, -1, false], [1, 1, false]
+            ];
+            return [...new Set(directions
+                .map(([dr, dc, skipEmpty]) => getDirectionalNeighbor(layout, index, dr, dc, skipEmpty))
+                .filter(neighbor => neighbor >= 0))];
         }
 
         function checkAdjacency(combo, layout) {
@@ -1045,7 +1063,7 @@
             addStmt(actualAdj === true, 'ADJACENCY_M', '인접한 미믹이 있어.', { hasAdj: true }, 8, ['global']);
             addStmt(actualAdj === false, 'ADJACENCY_M', '인접한 미믹이 없어.', { hasAdj: false }, 8, ['global']);
 
-            // Peer / Mimic Position: inspect every actual hex-neighbor, not only one direction.
+            // 주위 발언은 상하좌우의 다음 상자(공백 셀 건너뜀)와 네 대각선의 인접 상자를 포함합니다.
             const peerGroup = getHexNeighbors(layout, speakerIdx);
             if (peerGroup.length > 0) {
                 const peerMimicCount = peerGroup.filter(idx => roles[idx] === 'M').length;
@@ -1053,6 +1071,27 @@
                     { group: peerGroup, hasMimic: true }, 6, ['peer:hex']);
                 addStmt(peerMimicCount === 0, 'GROUP_M_EXIST', '내 주위에는 미믹이 없어.',
                     { group: peerGroup, hasMimic: false }, 6, ['peer:hex']);
+            }
+
+            // 방향별 발언: 상하좌우는 공백 셀을 건너 다음 상자를 찾고, 대각선은 바로 옆 셀만 확인합니다.
+            const directionStatements = [
+                { label: '왼쪽', dr: 0, dc: -1, skipEmpty: true },
+                { label: '오른쪽', dr: 0, dc: 1, skipEmpty: true },
+                { label: '위', dr: -1, dc: 0, skipEmpty: true },
+                { label: '아래', dr: 1, dc: 0, skipEmpty: true },
+                { label: '왼쪽위', dr: -1, dc: -1, skipEmpty: false },
+                { label: '왼쪽아래', dr: 1, dc: -1, skipEmpty: false },
+                { label: '오른쪽위', dr: -1, dc: 1, skipEmpty: false },
+                { label: '오른쪽아래', dr: 1, dc: 1, skipEmpty: false }
+            ];
+            for (const direction of directionStatements) {
+                const neighbor = getDirectionalNeighbor(layout, speakerIdx, direction.dr, direction.dc, direction.skipEmpty);
+                if (neighbor < 0) continue;
+                const hasMimic = roles[neighbor] === 'M';
+                addStmt(hasMimic, 'GROUP_M_EXIST', `내 ${direction.label} 상자에는 미믹이 있어.`,
+                    { group: [neighbor], hasMimic: true }, 5, [`direction:${direction.label}`]);
+                addStmt(!hasMimic, 'GROUP_M_EXIST', `내 ${direction.label} 상자에는 미믹이 없어.`,
+                    { group: [neighbor], hasMimic: false }, 5, [`direction:${direction.label}`]);
             }
 
             // Chain Logic: count mimics along the speaker's complete row and column.
