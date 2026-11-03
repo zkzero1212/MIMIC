@@ -171,7 +171,7 @@
         <!-- Header -->
         <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
-                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">0.29</span>
+                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">0.30</span>
             </h1>
             <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
@@ -1126,17 +1126,17 @@
             }
 
             const actualAdj = checkAdjacency(roles, layout);
-            addStmt(actualAdj === true, 'ADJACENCY_M', '인접한 미믹이 있어.', { hasAdj: true }, 8, ['global']);
-            addStmt(actualAdj === false, 'ADJACENCY_M', '인접한 미믹이 없어.', { hasAdj: false }, 8, ['global']);
+            addStmt(actualAdj === true, 'ADJACENCY_M', '인접한 미믹이 있어.', { hasAdj: true }, 10, ['global']);
+            addStmt(actualAdj === false, 'ADJACENCY_M', '인접한 미믹이 없어.', { hasAdj: false }, 10, ['global']);
 
             // 주위 발언은 상하좌우의 다음 상자(공백 셀 건너뜀)와 네 대각선의 인접 상자를 포함합니다.
             const peerGroup = getHexNeighbors(layout, speakerIdx);
             if (peerGroup.length > 0) {
                 const peerMimicCount = peerGroup.filter(idx => roles[idx] === 'M').length;
                 addStmt(peerMimicCount > 0, 'GROUP_M_EXIST', '내 주위에는 미믹이 있어.',
-                    { group: peerGroup, hasMimic: true }, 6, ['peer:hex']);
+                    { group: peerGroup, hasMimic: true }, 10, ['peer:hex']);
                 addStmt(peerMimicCount === 0, 'GROUP_M_EXIST', '내 주위에는 미믹이 없어.',
-                    { group: peerGroup, hasMimic: false }, 6, ['peer:hex']);
+                    { group: peerGroup, hasMimic: false }, 10, ['peer:hex']);
             }
 
             // 방향별 발언: 상하좌우는 공백 셀을 건너 다음 상자를 찾고, 대각선은 바로 옆 셀만 확인합니다.
@@ -1155,9 +1155,9 @@
                 if (neighbor < 0) continue;
                 const hasMimic = roles[neighbor] === 'M';
                 addStmt(hasMimic, 'GROUP_M_EXIST', `내 ${direction.label} 상자에는 미믹이 있어.`,
-                    { group: [neighbor], hasMimic: true }, 5, [`direction:${direction.label}`]);
+                    { group: [neighbor], hasMimic: true }, 10, [`direction:${direction.label}`]);
                 addStmt(!hasMimic, 'GROUP_M_EXIST', `내 ${direction.label} 상자에는 미믹이 없어.`,
-                    { group: [neighbor], hasMimic: false }, 5, [`direction:${direction.label}`]);
+                    { group: [neighbor], hasMimic: false }, 10, [`direction:${direction.label}`]);
             }
 
             // Chain Logic: count mimics along the speaker's complete row and column.
@@ -1190,8 +1190,8 @@
                 let notGroupSize = num - colorGroup.length;
                 if (notGroupSize > 0) {
                     let notGroupM = totalM - mM;
-                    addStmt(notGroupM > 0, 'NOT_COLOR_M', `${shortColorNames[c]}색이 아닌 상자에는 미믹이 있어.`, { color: c, hasMimic: true }, 6, t);
-                    addStmt(notGroupM === 0, 'NOT_COLOR_M', `${shortColorNames[c]}색이 아닌 상자에는 미믹이 없어.`, { color: c, hasMimic: false }, 6, t);
+                    addStmt(notGroupM > 0, 'NOT_COLOR_M', `${shortColorNames[c]}색이 아닌 상자에는 미믹이 있어.`, { color: c, hasMimic: true }, 10, t);
+                    addStmt(notGroupM === 0, 'NOT_COLOR_M', `${shortColorNames[c]}색이 아닌 상자에는 미믹이 없어.`, { color: c, hasMimic: false }, 10, t);
                 }
                 if (presentColors.length > 1) {
                     let maxM = Math.max(...presentColors.map(col => colorCounts[col].M));
@@ -1215,9 +1215,9 @@
                         let c1 = presentColors[i]; let c2 = presentColors[j];
                         let m1 = colorCounts[c1].M; let m2 = colorCounts[c2].M; let t = [`color:${c1}`, `color:${c2}`];
                         const compare = (m1, m2, c1, c2) => {
-                            addStmt(m1 < m2, 'COLOR_CMP', `${shortColorNames[c1]}색 상자가 ${shortColorNames[c2]}색 상자보다 미믹이 적어.`, { c1, c2, op: '<' }, 8, t);
-                            addStmt(m1 > m2, 'COLOR_CMP', `${shortColorNames[c1]}색 상자가 ${shortColorNames[c2]}색 상자보다 미믹이 많아.`, { c1, c2, op: '>' }, 8, t);
-                            addEqualityVariants(m1 === m2, 'COLOR_CMP', `${shortColorNames[c1]}색과 ${shortColorNames[c2]}색의 미믹 수가 같아.`, `${shortColorNames[c1]}색과 ${shortColorNames[c2]}색의 미믹 수가 다르지 않아.`, { c1, c2, op: '==' }, 8, t);
+                            addStmt(m1 < m2, 'COLOR_CMP', `${shortColorNames[c1]}색 상자가 ${shortColorNames[c2]}색 상자보다 미믹이 적어.`, { c1, c2, op: '<' }, 10, t);
+                            addStmt(m1 > m2, 'COLOR_CMP', `${shortColorNames[c1]}색 상자가 ${shortColorNames[c2]}색 상자보다 미믹이 많아.`, { c1, c2, op: '>' }, 10, t);
+                            addEqualityVariants(m1 === m2, 'COLOR_CMP', `${shortColorNames[c1]}색과 ${shortColorNames[c2]}색의 미믹 수가 같아.`, `${shortColorNames[c1]}색과 ${shortColorNames[c2]}색의 미믹 수가 다르지 않아.`, { c1, c2, op: '==' }, 10, t);
                         };
                         compare(m1, m2, c1, c2); compare(m2, m1, c2, c1); 
                         let unionGroup = []; for(let k=0; k<num; k++) if (chestColors[k] === c1 || chestColors[k] === c2) unionGroup.push(k);
@@ -1228,7 +1228,7 @@
             }
 
             const spatialGroups = [];
-            const addSpatialGroup = (key, labels, group, weight = 7) => {
+            const addSpatialGroup = (key, labels, group, weight = 10) => {
                 const unique = [...new Set(group)]; if (!unique.length) return;
                 const signature = [...unique].sort((a, b) => a - b).join(',');
                 if (spatialGroups.some(entry => entry.signature === signature && entry.key === key)) return;
@@ -1237,27 +1237,27 @@
             const rowGroups = Array.from({ length: rows }, (_, r) => layout.pos.map(([rr], i) => rr === r ? i : -1).filter(i => i >= 0));
             const colGroups = Array.from({ length: cols }, (_, c) => layout.pos.map(([, cc], i) => cc === c ? i : -1).filter(i => i >= 0));
             
-            for (let r = 0; r < rows; r++) addSpatialGroup(`row:${r}`, [`${r + 1}행`, ...(r === row ? ['내가 있는 행'] : [])], rowGroups[r], 8);
-            for (let c = 0; c < cols; c++) addSpatialGroup(`col:${c}`, [`${String.fromCharCode(65 + c)}열`, ...(c === col ? ['내가 있는 열'] : [])], colGroups[c], 8);
+            for (let r = 0; r < rows; r++) addSpatialGroup(`row:${r}`, [`${r + 1}행`, ...(r === row ? ['내가 있는 행'] : [])], rowGroups[r], 10);
+            for (let c = 0; c < cols; c++) addSpatialGroup(`col:${c}`, [`${String.fromCharCode(65 + c)}열`, ...(c === col ? ['내가 있는 열'] : [])], colGroups[c], 10);
             
-            addSpatialGroup('edge:top', ['가장 위쪽 행'], rowGroups[0], 8);
-            addSpatialGroup('edge:bottom', ['가장 아래쪽 행'], rowGroups[rows - 1], 8);
-            addSpatialGroup('edge:left', ['가장 왼쪽 열'], colGroups[0], 8);
-            addSpatialGroup('edge:right', ['가장 오른쪽 열'], colGroups[cols - 1], 8);
-            addSpatialGroup('row:even', '짝수 행', layout.pos.map(([r], i) => r % 2 === 1 ? i : -1).filter(i => i >= 0), 5);
-            addSpatialGroup('row:odd', '홀수 행', layout.pos.map(([r], i) => r % 2 === 0 ? i : -1).filter(i => i >= 0), 5);
+            addSpatialGroup('edge:top', ['가장 위쪽 행'], rowGroups[0], 10);
+            addSpatialGroup('edge:bottom', ['가장 아래쪽 행'], rowGroups[rows - 1], 10);
+            addSpatialGroup('edge:left', ['가장 왼쪽 열'], colGroups[0], 10);
+            addSpatialGroup('edge:right', ['가장 오른쪽 열'], colGroups[cols - 1], 10);
+            addSpatialGroup('row:even', '짝수 행', layout.pos.map(([r], i) => r % 2 === 1 ? i : -1).filter(i => i >= 0), 10);
+            addSpatialGroup('row:odd', '홀수 행', layout.pos.map(([r], i) => r % 2 === 0 ? i : -1).filter(i => i >= 0), 10);
 
             for (const color of presentColors) addSpatialGroup(`color:${color}`, [`${shortColorNames[color]}색 상자`], chestColors.map((v, i) => v === color ? i : -1).filter(i => i >= 0), 8);
-            addSpatialGroup('self-color:others', ['나와 같은 색의 다른 상자'], sameColorGroup, 6);
-            addSpatialGroup('self-color:all', ['나와 같은 색의 상자'], allSameColorGroup, 6);
-            addSpatialGroup('self-color:different', ['나와 다른 색의 상자'], diffColorGroup, 6);
+            addSpatialGroup('self-color:others', ['나와 같은 색의 다른 상자'], sameColorGroup, 10);
+            addSpatialGroup('self-color:all', ['나와 같은 색의 상자'], allSameColorGroup, 10);
+            addSpatialGroup('self-color:different', ['나와 다른 색의 상자'], diffColorGroup, 10);
 
             const sameRow = rowGroups[row]; const rowM = sameRow.filter(idx => roles[idx] === 'M').length;
             if (rows > 1) {
                 const targetRow = (row + 1) % rows; const targetM = rowGroups[targetRow].filter(idx => roles[idx] === 'M').length;
-                addStmt(rowM > targetM, 'ROW_CMP', `${row + 1}행의 미믹 수가 ${targetRow + 1}행보다 많아.`, { r1: row, r2: targetRow, op: '>' }, 6, []);
-                addStmt(rowM < targetM, 'ROW_CMP', `${row + 1}행의 미믹 수가 ${targetRow + 1}행보다 적어.`, { r1: row, r2: targetRow, op: '<' }, 6, []);
-                addEqualityVariants(rowM === targetM, 'ROW_CMP', `${row + 1}행과 ${targetRow + 1}행의 미믹 수가 같아.`, `${row + 1}행과 ${targetRow + 1}행의 미믹 수가 다르지 않아.`, { r1: row, r2: targetRow, op: '==' }, 6, []);
+                addStmt(rowM > targetM, 'ROW_CMP', `${row + 1}행의 미믹 수가 ${targetRow + 1}행보다 많아.`, { r1: row, r2: targetRow, op: '>' }, 10, []);
+                addStmt(rowM < targetM, 'ROW_CMP', `${row + 1}행의 미믹 수가 ${targetRow + 1}행보다 적어.`, { r1: row, r2: targetRow, op: '<' }, 10, []);
+                addEqualityVariants(rowM === targetM, 'ROW_CMP', `${row + 1}행과 ${targetRow + 1}행의 미믹 수가 같아.`, `${row + 1}행과 ${targetRow + 1}행의 미믹 수가 다르지 않아.`, { r1: row, r2: targetRow, op: '==' }, 10, []);
             }
             if (totalM > 1) {
                 const mRows = new Set(); roles.forEach((r, i) => { if (r === 'M') mRows.add(layout.pos[i][0]); });
