@@ -137,7 +137,7 @@
         <!-- Header -->
         <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
-                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">0.20</span>
+                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">0.21</span>
             </h1>
             <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
@@ -484,6 +484,7 @@
             { id: 'TEMP_MIMICS', type: 'temp', text: '이번 층 미믹 수 1개 증가' },
             { id: 'TEMP_SLEEP', type: 'temp', text: '이번 층 잠자는 상자 2개 증가' },
             { id: 'TEMP_RANDOM', type: 'temp', text: '이번 층 미믹 수 랜덤화' },
+            { id: 'TRICKSTER', type: 'temp', text: '이번 층에 흉내쟁이가 있습니다' },
             { id: 'PERM_CHESTS', type: 'perm', text: '이후 모든 층 상자 수 1개 증가' },
             { id: 'PERM_MIMICS', type: 'perm', text: '이후 모든 층 미믹 수 1개 증가' },
             { id: 'PERM_RANDOM', type: 'perm', text: '영구 미믹 랜덤화 활성' },
@@ -543,6 +544,7 @@
             if (ev.id === 'TEMP_MIMICS') currentTempCurses.addMimics = (currentTempCurses.addMimics || 0) + 1;
             if (ev.id === 'TEMP_SLEEP') currentTempCurses.addSleep = (currentTempCurses.addSleep || 0) + 2;
             if (ev.id === 'TEMP_RANDOM') currentTempCurses.random = true;
+            if (ev.id === 'TRICKSTER') currentTempCurses.trickster = true;
             if (ev.id === 'PERM_CHESTS') permCurses.addChests += 1;
             if (ev.id === 'PERM_MIMICS') permCurses.addMimics += 1;
             if (ev.id === 'PERM_RANDOM') permCurses.random = true;
@@ -697,6 +699,16 @@
                 }
             }
             
+            const tricksterSegment = Math.floor((currentFloor - 1) / 5) + 1;
+            let tricksterMode = 'none';
+            if (tricksterSegment === 2 && currentTempCurses.trickster) {
+                tricksterMode = 'required';
+            } else if (tricksterSegment === 3) {
+                tricksterMode = 'optional';
+            } else if (tricksterSegment >= 4) {
+                tricksterMode = 'required';
+            }
+
             const baseChestCount = currentFloor <= 3 ? [4, 5, 6][currentFloor - 1] : 6;
             let calcChests = baseChestCount +
                 segmentChestBonus + permCurses.addChests + (currentTempCurses.addChests || 0);
@@ -722,6 +734,8 @@
             
             let sleepCount = permCurses.sleepLevel + (currentTempCurses.addSleep || 0) + (isBoss ? 1 : 0) - (tempBuffs.reduceSleep || 0);
             sleepCount = Math.max(0, Math.min(calcChests, sleepCount));
+            if (tricksterMode !== 'none') sleepCount = Math.min(sleepCount, calcChests - 2);
+            const sleepIndices = shuffleArray(Array.from({ length: calcChests }, (_, i) => i)).slice(0, sleepCount);
             tempBuffs = { preventRandom: false, reduceSleep: 0 }; 
             
             genWarning.classList.remove('invisible');
@@ -733,7 +747,9 @@
                 rawTreasures.forEach((tr, idx) => { treasureColorMap[tr] = shuffledPalette[idx % shuffledPalette.length]; });
                 
                 isRandomMode = isRandom;
-                let puzzle = generatePuzzle(calcChests, calcMimics, rawTreasures, isBoss);
+                let actualTricksterMode = tricksterMode;
+                if (tricksterSegment === 3 && Math.random() >= 0.05) actualTricksterMode = 'none';
+                let puzzle = generatePuzzle(calcChests, calcMimics, rawTreasures, isBoss, sleepIndices, actualTricksterMode);
                 if (!puzzle) {
                     // Keep the current floor/progression if randomized clue generation exhausts its attempts.
                     genWarning.classList.add('invisible');
@@ -743,6 +759,10 @@
                     return;
                 }
                 
+                if (actualTricksterMode !== 'none' && puzzle.tricksterIdx < 0) {
+                    currentEventLogs = currentEventLogs.filter(log => !log.includes('이번 층에 흉내쟁이가 있습니다'));
+                    currentEventLogs.push('⚠️ [생성 대체] 흉내쟁이 조건을 제외한 일반 퍼즐로 생성되었습니다.');
+                }
                 currentGridLayout = puzzle.layout;
                 chestsData = [];
                 for (let i = 0; i < calcChests; i++) {
@@ -761,8 +781,7 @@
                 }
                 
                 if (sleepCount > 0) {
-                    let indices = shuffleArray(Array.from({length: calcChests}, (_, i) => i)).slice(0, sleepCount);
-                    indices.forEach(idx => {
+                    sleepIndices.forEach(idx => {
                         chestsData[idx].isSleeping = true;
                         chestsData[idx].statement = 'zzZ';
                     });
@@ -1260,57 +1279,146 @@
             return { truthCandidates: stmts.filter(stmt => stmt.assumesTruth === true), falseCandidates: stmts.filter(stmt => stmt.assumesTruth === false) };
         }
 
-        function testStatementsCombination(statements, combo, chestColors, layout, treasurePlan) {
-            const num = combo.length; let colorCounts = {}; for(let c of colors) colorCounts[c] = { M: 0 };
-            for(let i = 0; i < num; i++) if (combo[i] === 'M') colorCounts[chestColors[i]].M++;
-            const presentColors = [...new Set(chestColors)]; const candidateTreasures = mapTreasuresToRoles(combo, treasurePlan);
+        function findComplementaryStatement(stmt, falseCandidates) {
+            const inverseOp = { '==': '!=', '!=': '==', '>': '<=', '<=': '>', '<': '>=', '>=': '<' };
+            const fieldsByType = {
+                RANDOM_MIMIC_COUNT: ['kind', 'op', 'count', 'parity', 'colorCount'],
+                COLOR_M: ['color', 'op', 'count'],
+                GROUP_M_COUNT: ['group', 'op', 'count'],
+                COLOR_PARITY: ['color', 'parity'],
+                COLOR_CMP: ['c1', 'c2', 'op'],
+                NOT_COLOR_M: ['color', 'hasMimic'],
+                GROUP_M_EXIST: ['group', 'hasMimic'],
+                ITEM_GROUP_EXIST: ['group', 'item', 'hasItem'],
+                ROW_CMP: ['r1', 'r2', 'op'],
+                ROW_ADJACENT_M: ['hasAdj'],
+                COL_ADJACENT_M: ['hasAdj'],
+                ADJACENCY_M: ['hasAdj'],
+                ROW_MULTI_M: ['hasMultiple'],
+                COL_MULTI_M: ['hasMultiple'],
+                SYMMETRY_M: ['isSymmetric']
+            };
+            const fields = fieldsByType[stmt.type];
+            if (!fields) return null;
+            const inverse = { ...stmt };
+            if (Object.prototype.hasOwnProperty.call(stmt, 'op')) {
+                inverse.op = inverseOp[stmt.op];
+                if (!inverse.op) return null;
+            }
+            for (const key of ['hasMimic', 'hasAdj', 'hasMultiple', 'hasItem', 'isSymmetric']) {
+                if (Object.prototype.hasOwnProperty.call(stmt, key)) inverse[key] = !stmt[key];
+            }
+            if (Object.prototype.hasOwnProperty.call(stmt, 'parity')) inverse.parity = 1 - stmt.parity;
+            const sameValue = (a, b) => Array.isArray(a) && Array.isArray(b)
+                ? a.length === b.length && a.every((value, index) => value === b[index])
+                : a === b;
+            return falseCandidates.find(candidate =>
+                candidate.type === stmt.type &&
+                candidate.assumesTruth === false &&
+                fields.every(key => sameValue(inverse[key], candidate[key]))
+            ) || null;
+        }
+
+        function testStatementsCombination(
+            statements, combo, chestColors, layout, treasurePlan,
+            sleepIndices = [], tricksterIdx = -1, copyTargetIdx = -1
+        ) {
+            const num = combo.length;
+            const colorCounts = {};
+            for (const c of colors) colorCounts[c] = { M: 0 };
+            for (let i = 0; i < num; i++) if (combo[i] === 'M') colorCounts[chestColors[i]].M++;
+            const presentColors = [...new Set(chestColors)];
+            const candidateTreasures = mapTreasuresToRoles(combo, treasurePlan);
+            const totalMimics = combo.filter(role => role === 'M').length;
 
             for (let i = 0; i < num; i++) {
-                const stmt = statements[i]; const assumesTruth = (combo[i] === 'T'); let isTrue = false;
+                if (sleepIndices.includes(i)) continue;
+                const stmt = statements[i];
+                if (!stmt) return false;
+                const expectedTruth = i === tricksterIdx
+                    ? (copyTargetIdx >= 0 && combo[copyTargetIdx] === 'T')
+                    : combo[i] === 'T';
+                let isTrue = false;
                 switch(stmt.type) {
                     case 'RANDOM_MIMIC_COUNT':
-                        if (stmt.kind === 'count') isTrue = evaluateOp(combo.filter(r => r === 'M').length, stmt.op, stmt.count);
-                        else if (stmt.kind === 'parity') isTrue = (combo.filter(r => r === 'M').length % 2 === stmt.parity);
-                        else if (stmt.kind === 'color_compare') isTrue = evaluateOp(stmt.colorCount, stmt.op, combo.filter(r => r === 'M').length);
+                        if (stmt.kind === 'count') isTrue = evaluateOp(totalMimics, stmt.op, stmt.count);
+                        else if (stmt.kind === 'parity') isTrue = (totalMimics % 2 === stmt.parity);
+                        else if (stmt.kind === 'color_compare') isTrue = evaluateOp(stmt.colorCount, stmt.op, totalMimics);
                         break;
-                    case 'COLOR_M': case 'GROUP_M_COUNT': let gCount = (stmt.type === 'COLOR_M') ? colorCounts[stmt.color].M : stmt.group.filter(idx => combo[idx] === 'M').length; isTrue = evaluateOp(gCount, stmt.op, stmt.count); break;
-                    case 'COLOR_PARITY': isTrue = (colorCounts[stmt.color].M % 2 === stmt.parity); break;
-                    case 'COLOR_CMP': isTrue = evaluateOp(colorCounts[stmt.c1].M, stmt.op, colorCounts[stmt.c2].M); break;
-                    case 'NOT_COLOR_M': let notColorM = combo.filter((role, idx) => role === 'M' && chestColors[idx] !== stmt.color).length; isTrue = stmt.hasMimic ? (notColorM > 0) : (notColorM === 0); break;
+                    case 'COLOR_M':
+                    case 'GROUP_M_COUNT': {
+                        const gCount = stmt.type === 'COLOR_M'
+                            ? colorCounts[stmt.color].M
+                            : stmt.group.filter(idx => combo[idx] === 'M').length;
+                        isTrue = evaluateOp(gCount, stmt.op, stmt.count);
+                        break;
+                    }
+                    case 'COLOR_PARITY':
+                        isTrue = (colorCounts[stmt.color].M % 2 === stmt.parity);
+                        break;
+                    case 'COLOR_CMP':
+                        isTrue = evaluateOp(colorCounts[stmt.c1].M, stmt.op, colorCounts[stmt.c2].M);
+                        break;
+                    case 'NOT_COLOR_M': {
+                        const count = combo.filter((role, idx) => role === 'M' && chestColors[idx] !== stmt.color).length;
+                        isTrue = stmt.hasMimic ? count > 0 : count === 0;
+                        break;
+                    }
                     case 'COLOR_EXTREME': {
                         const allM = presentColors.map(col => colorCounts[col].M);
                         const extremeVal = stmt.isMax ? Math.max(...allM) : Math.min(...allM);
                         const extremeCount = allM.filter(count => count === extremeVal).length;
-                        // 최댓값/최솟값이 공동이면 해당 색상을 극값으로 인정하지 않습니다.
                         isTrue = extremeCount === 1 && colorCounts[stmt.color].M === extremeVal;
                         break;
                     }
-                    case 'GROUP_M_EXIST': let gmCount = stmt.group.filter(idx => combo[idx] === 'M').length; isTrue = stmt.hasMimic ? (gmCount > 0) : (gmCount === 0); break;
-                    case 'ITEM_GROUP_EXIST': const itemCount = stmt.group.filter(idx => candidateTreasures[idx] === stmt.item).length; isTrue = stmt.hasItem ? itemCount > 0 : itemCount === 0; break;
-                    case 'ROW_CMP': let r1M = 0; let r2M = 0; layout.pos.forEach(([r, c], idx) => { if(r === stmt.r1 && combo[idx]==='M') r1M++; if(r === stmt.r2 && combo[idx]==='M') r2M++; }); isTrue = evaluateOp(r1M, stmt.op, r2M); break;
+                    case 'GROUP_M_EXIST': {
+                        const count = stmt.group.filter(idx => combo[idx] === 'M').length;
+                        isTrue = stmt.hasMimic ? count > 0 : count === 0;
+                        break;
+                    }
+                    case 'ITEM_GROUP_EXIST': {
+                        const count = stmt.group.filter(idx => candidateTreasures[idx] === stmt.item).length;
+                        isTrue = stmt.hasItem ? count > 0 : count === 0;
+                        break;
+                    }
+                    case 'ROW_CMP': {
+                        let r1M = 0, r2M = 0;
+                        layout.pos.forEach(([r], idx) => {
+                            if (r === stmt.r1 && combo[idx] === 'M') r1M++;
+                            if (r === stmt.r2 && combo[idx] === 'M') r2M++;
+                        });
+                        isTrue = evaluateOp(r1M, stmt.op, r2M);
+                        break;
+                    }
                     case 'ROW_ADJACENT_M':
                     case 'COL_ADJACENT_M': {
-                        const sameAxis = stmt.type === 'ROW_ADJACENT_M' ? 0 : 1;
-                        isTrue = combo.some((role, idx) => role === 'M' &&
-                            getAdjacentNeighbors(layout, idx).some(other =>
+                        const axis = stmt.type === 'ROW_ADJACENT_M' ? 0 : 1;
+                        let found = false;
+                        for (let idx = 0; idx < num && !found; idx++) {
+                            if (combo[idx] !== 'M') continue;
+                            found = getAdjacentNeighbors(layout, idx).some(other =>
                                 other > idx && combo[other] === 'M' &&
-                                layout.pos[other][sameAxis] === layout.pos[idx][sameAxis]));
-                        isTrue = isTrue === stmt.hasAdj;
+                                layout.pos[other][axis] === layout.pos[idx][axis]);
+                        }
+                        isTrue = found === stmt.hasAdj;
                         break;
                     }
                     case 'ROW_MULTI_M':
                     case 'COL_MULTI_M': {
                         const axis = stmt.type === 'ROW_MULTI_M' ? 0 : 1;
-                        const occupiedLines = new Set();
-                        combo.forEach((role, idx) => { if (role === 'M') occupiedLines.add(layout.pos[idx][axis]); });
-                        const hasMultiple = occupiedLines.size < combo.filter(role => role === 'M').length;
-                        isTrue = hasMultiple === stmt.hasMultiple;
+                        const occupied = new Set();
+                        combo.forEach((role, idx) => { if (role === 'M') occupied.add(layout.pos[idx][axis]); });
+                        isTrue = (occupied.size < totalMimics) === stmt.hasMultiple;
                         break;
                     }
-                    case 'ADJACENCY_M': isTrue = (checkAdjacency(combo, layout) === stmt.hasAdj); break;
-                    case 'SYMMETRY_M': isTrue = (isMirrorSymmetric(combo, layout) === stmt.isSymmetric); break;
+                    case 'ADJACENCY_M':
+                        isTrue = checkAdjacency(combo, layout) === stmt.hasAdj;
+                        break;
+                    case 'SYMMETRY_M':
+                        isTrue = isMirrorSymmetric(combo, layout) === stmt.isSymmetric;
+                        break;
                 }
-                if (assumesTruth !== isTrue) return false;
+                if (expectedTruth !== isTrue) return false;
             }
             return true;
         }
@@ -1375,31 +1483,129 @@
             let results = []; for (let m = 1; m <= maxM; m++) results.push(...getCombinations(n, m)); return results;
         }
 
-        function generatePuzzle(numChests, numMimics, rawTreasures, isBoss) {
-            let layout = getGridLayout(numChests);
-            for (let attempt = 0; attempt < 500; attempt++) {
-                let actualRoles = generateRoles(numChests, numMimics); let actualColors = getRandomColors(numChests);
-                const treasurePlan = buildTreasurePlan(numChests, rawTreasures); const actualTreasures = mapTreasuresToRoles(actualRoles, treasurePlan);
-                let selectedStatements = []; let historyTags = []; let confirmedIndices = new Set(); let success = true;
-                
-                for (let i = 0; i < numChests; i++) {
-                    const candidatePools = generatePossibleStatements(i, actualRoles, actualColors, layout, actualTreasures);
-                    const possible = actualRoles[i] === 'T' ? candidatePools.truthCandidates : candidatePools.falseCandidates;
-                    if (possible.length === 0) { success = false; break; }
-                    let picked = weightedRandomSelect(possible, historyTags, confirmedIndices, numChests, isBoss);
-                    selectedStatements.push(picked);
-                    (picked.certaintyIndices || []).forEach(idx => confirmedIndices.add(idx));
-                    if (picked.tags) picked.tags.forEach(t => { if(!historyTags.includes(t)) historyTags.push(t); });
-                }
-                if (!success || selectedStatements.length !== numChests) continue;
+        function generatePuzzle(
+            numChests, numMimics, rawTreasures, isBoss,
+            sleepIndices = [], tricksterMode = 'none'
+        ) {
+            const layout = getGridLayout(numChests);
+            const awakeIndices = Array.from({ length: numChests }, (_, i) => i)
+                .filter(i => !sleepIndices.includes(i));
+            const maxM = Math.max(1, Math.floor(numChests / 2));
+            const combos = isRandomMode
+                ? getAllCombinations(numChests, maxM)
+                : getCombinations(numChests, numMimics);
+            const needsTrickster = tricksterMode === 'required' || tricksterMode === 'optional';
+            if (needsTrickster && awakeIndices.length < 2) return null;
 
-                let validCount = 0; let maxM = Math.max(1, Math.floor(numChests / 2));
-                let combos = isRandomMode ? getAllCombinations(numChests, maxM) : getCombinations(numChests, numMimics);
-                for (let combo of combos) {
-                    if (testStatementsCombination(selectedStatements, combo, actualColors, layout, treasurePlan)) validCount++;
-                    if (validCount > 1) break;
+            const generateAttempts = (withTrickster) => {
+                for (let attempt = 0; attempt < 500; attempt++) {
+                    const actualRoles = generateRoles(numChests, numMimics);
+                    const actualColors = getRandomColors(numChests);
+                    const treasurePlan = buildTreasurePlan(numChests, rawTreasures);
+                    const actualTreasures = mapTreasuresToRoles(actualRoles, treasurePlan);
+
+                    let tricksterIdx = -1;
+                    let copyTargetIdx = -1;
+                    if (withTrickster) {
+                        const eligible = awakeIndices.filter(i => actualRoles[i] === 'T');
+                        if (!eligible.length) continue;
+                        tricksterIdx = eligible[Math.floor(Math.random() * eligible.length)];
+                        const targets = Array.from({ length: numChests }, (_, i) => i)
+                            .filter(i => i !== tricksterIdx);
+                        copyTargetIdx = targets[Math.floor(Math.random() * targets.length)];
+                    }
+
+                    const selectedStatements = [];
+                    const historyTags = [];
+                    const confirmedIndices = new Set();
+                    let success = true;
+
+                    for (let i = 0; i < numChests; i++) {
+                        const pools = generatePossibleStatements(
+                            i, actualRoles, actualColors, layout, actualTreasures
+                        );
+                        const isTrickster = i === tricksterIdx;
+                        const targetIsMimic = isTrickster && actualRoles[copyTargetIdx] === 'M';
+                        const possible = actualRoles[i] === 'T'
+                            ? pools.truthCandidates
+                            : pools.falseCandidates;
+
+                        if (!possible.length) { success = false; break; }
+                        let picked = weightedRandomSelect(
+                            possible, historyTags, confirmedIndices, numChests, isBoss
+                        );
+
+                        if (isTrickster && targetIsMimic) {
+                            picked = findComplementaryStatement(picked, pools.falseCandidates);
+                            if (!picked) { success = false; break; }
+                        }
+
+                        selectedStatements.push(picked);
+                        (picked.certaintyIndices || []).forEach(idx => confirmedIndices.add(idx));
+                        if (picked.tags) picked.tags.forEach(tag => {
+                            if (!historyTags.includes(tag)) historyTags.push(tag);
+                        });
+                    }
+
+                    if (!success || selectedStatements.length !== numChests) continue;
+
+                    const solutionKeys = new Set();
+                    const checkScenario = (candidateTrickster, candidateTarget) => {
+                        for (const combo of combos) {
+                            if (candidateTrickster >= 0 && combo[candidateTrickster] !== 'T') continue;
+                            if (testStatementsCombination(
+                                selectedStatements, combo, actualColors, layout, treasurePlan,
+                                sleepIndices, candidateTrickster, candidateTarget
+                            )) {
+                                solutionKeys.add(
+                                    `${combo.join('')}: ${candidateTrickster < 0 ? 'none' : candidateTrickster}`
+                                );
+                                if (solutionKeys.size > 1) return false;
+                            }
+                        }
+                        return true;
+                    };
+
+                    if (tricksterMode === 'none' || tricksterMode === 'optional') {
+                        if (!checkScenario(-1, -1)) continue;
+                    }
+                    if (withTrickster || tricksterMode === 'optional') {
+                        for (const candidateIdx of awakeIndices) {
+                            for (let target = 0; target < numChests; target++) {
+                                if (target === candidateIdx) continue;
+                                if (!checkScenario(candidateIdx, target)) break;
+                            }
+                            if (solutionKeys.size > 1) break;
+                        }
+                    }
+
+                    if (solutionKeys.size === 1) {
+                        return {
+                            roles: actualRoles,
+                            statements: selectedStatements,
+                            colors: actualColors,
+                            treasures: actualTreasures,
+                            layout: {
+                                cols: layout.cols, rows: layout.rows,
+                                rowCounts: layout.rowCounts, pos: layout.pos,
+                                honeycomb: layout.honeycomb
+                            },
+                            tricksterIdx,
+                            copyTargetIdx
+                        };
+                    }
                 }
-                if (validCount === 1) return { roles: actualRoles, statements: selectedStatements, colors: actualColors, treasures: actualTreasures, layout: { cols: layout.cols, rows: layout.rows, rowCounts: layout.rowCounts, pos: layout.pos, honeycomb: layout.honeycomb } };
+                return null;
+            };
+
+            const primary = tricksterMode === 'none'
+                ? generateAttempts(false)
+                : generateAttempts(true);
+            if (primary) return primary;
+
+            // 흉내쟁이 조건 생성이 500회 안에 실패하면 일반 퍼즐로 안전하게 대체합니다.
+            if (tricksterMode !== 'none') {
+                return generateAttempts(false);
             }
             return null;
         }
