@@ -1370,7 +1370,7 @@
             const horizontalScroller = document.createElement('div');
             horizontalScroller.className = "w-full max-w-full overflow-x-auto overflow-y-visible pt-4 pb-2";
             const rowsWrapper = document.createElement('div');
-            rowsWrapper.className = "flex flex-col gap-2 items-center w-max min-w-full";
+            rowsWrapper.className = "flex flex-col gap-1 items-center w-max min-w-full";
             horizontalScroller.appendChild(rowsWrapper);
             targetContainer.appendChild(horizontalScroller);
             const numChests = boardData.length;
@@ -1401,7 +1401,7 @@
 
                 for (let idx of rowGroups[r]) {
                     const chest = boardData[idx];
-                    const chestWrap = document.createElement('div'); chestWrap.className = `flex flex-col items-center w-32 relative mt-1 shrink-0`;
+                    const chestWrap = document.createElement('div'); chestWrap.className = `flex flex-col items-center w-32 relative mt-0 shrink-0`;
                     if (!isPreview) { chestWrap.onmouseenter = () => { hoveredChestIdx = idx; }; chestWrap.onmouseleave = () => { if (hoveredChestIdx === idx) hoveredChestIdx = null; }; }
 
                     const coord = getCoord(idx, layout);
@@ -1410,7 +1410,7 @@
 
                     const bubble = document.createElement('div');
                     bubble.className = `relative bg-white border ${chest.isOpen && chest.role === 'M' ? 'border-red-300 text-red-600' : chest.isOpen && chest.role === 'T' ? 'border-emerald-300 text-emerald-700' : 'border-slate-200 text-slate-700'} 
-                                        text-[11px] md:text-xs px-2.5 py-1.5 rounded-xl mb-1.5 w-full text-center shadow-sm bubble-arrow font-medium break-keep h-[58px] md:h-[68px] flex items-center justify-center leading-snug overflow-hidden`;
+                                        text-[10px] md:text-[11px] px-1.5 py-0.5 rounded-xl mb-1 w-full text-center shadow-sm bubble-arrow font-medium break-keep h-[29px] md:h-[34px] flex items-center justify-center leading-tight overflow-hidden`;
                     
                     if (chest.isSleeping) bubble.innerHTML = `<span class="text-xl font-bold tracking-widest text-slate-400 animate-pulse">zzZ</span>`;
                     else bubble.innerHTML = `<span>${chest.statement}</span>`;
@@ -1444,17 +1444,17 @@
                     if (!isPreview && !chest.isOpen) btnChest.onclick = () => openChest(idx);
                     chestWrap.appendChild(btnChest);
 
-                    const actionWrap = document.createElement('div'); actionWrap.className = "mt-2 w-full h-9 flex items-center justify-center";
+                    const actionWrap = document.createElement('div'); actionWrap.className = "mt-1 w-full h-[18px] flex items-center justify-center";
                     if (chest.isOpen) {
                         // 개봉 후에는 기존처럼 실제 결과를 표시합니다.
                         const resultBadge = document.createElement('div');
-                        resultBadge.className = `w-full min-h-7 px-2 py-1 rounded-lg bg-white shadow-xs text-[11px] leading-tight font-bold text-center flex items-center justify-center break-keep ${chest.role === 'M' ? 'text-red-600' : (treasureColorMap[chest.treasure] || { text: 'text-emerald-700' }).text}`;
+                        resultBadge.className = `w-full min-h-[18px] px-1 py-0.5 rounded-lg bg-white shadow-xs text-[9px] leading-tight font-bold text-center flex items-center justify-center break-keep ${chest.role === 'M' ? 'text-red-600' : (treasureColorMap[chest.treasure] || { text: 'text-emerald-700' }).text}`;
                         resultBadge.innerText = chest.role === 'M' ? '미믹!' : chest.treasure;
                         actionWrap.appendChild(resultBadge);
                     } else {
                         // 개봉 전에는 상자 아래 고정된 빈 네모 안에 마킹과 메모를 표시합니다.
                         const markBadge = document.createElement('div');
-                        markBadge.className = "w-9 h-8 rounded-md border-2 border-slate-300 bg-white shadow-sm flex items-center justify-center gap-0.5 text-xs font-extrabold";
+                        markBadge.className = "w-[18px] h-[18px] rounded-sm border-2 border-slate-300 bg-white shadow-sm flex items-center justify-center gap-0.5 text-[9px] font-extrabold";
                         const markStyles = {
                             O: "text-emerald-600 border-emerald-400",
                             X: "text-red-600 border-red-400",
