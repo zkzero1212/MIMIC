@@ -137,7 +137,7 @@
         <!-- Header -->
         <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
-                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v0.9</span>
+                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v1.0</span>
             </h1>
             <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
@@ -948,9 +948,10 @@
                 const publicMaxMimics = isRandomMode ? Math.max(1, Math.floor((num - 1) / 2)) : totalM;
                 const boundedMax = Math.min(maxCount, publicMaxMimics);
                 const variants = [];
-                for (let n = 0; n <= boundedMax; n++) variants.push({
+                // 전체 미믹 수 발언은 랜덤 모드에서만 생성하며, 0마리 발언은 현재 제외합니다.
+                for (let n = type === 'GLOBAL_M_COUNT' ? 1 : 0; n <= boundedMax; n++) variants.push({
                     truth: actualCount === n,
-                    text: n === 0 && type === 'GLOBAL_M_COUNT' ? '이 맵 전체의 미믹 수는 정확히 0마리야.' : n === 0 ? `${prefixText} 미믹이 없어.` : `${prefixText} 미믹은 정확히 ${n}마리야.`,
+                    text: n === 0 ? `${prefixText} 미믹이 없어.` : `${prefixText} 미믹은 정확히 ${n}마리야.`,
                     data: { op: '==', count: n },
                     decisiveMaximum: n === publicMaxMimics && publicMaxMimics > 0
                 });
@@ -1322,7 +1323,7 @@
                 const isWideScreen = window.matchMedia('(min-width: 768px)').matches;
                 // 실제 상자 래퍼 폭(8rem)에 맞춰 트랙을 줄여 화면에서 상자 사이 간격을 축소합니다.
                 // 벌집형은 상자당 2트랙이므로 4rem, 일반형은 8.5rem으로 설정합니다.
-                const gridTrack = layout.honeycomb ? 4 : 8.5;
+                const gridTrack = layout.honeycomb ? 2.5 : 8.5;
                 rowContainer.style.gridTemplateColumns = `repeat(${layout.honeycomb ? layout.cols * 2 : layout.cols}, ${gridTrack}rem)`;
                 rowContainer.style.columnGap = '0px';
                 rowContainer.style.flexShrink = "0";
@@ -1373,18 +1374,32 @@
                     if (!isPreview && !chest.isOpen) btnChest.onclick = () => openChest(idx);
                     chestWrap.appendChild(btnChest);
 
-                    const actionWrap = document.createElement('div'); actionWrap.className = "mt-2 w-full h-8 flex flex-col items-center justify-start";
-                    // 개봉 전부터 결과 표시 공간을 예약해 개봉할 때 행 높이가 흔들리지 않게 합니다.
-                    const resultBadge = document.createElement('div');
-                    resultBadge.className = `w-full min-h-7 px-2 py-1 rounded-lg bg-white shadow-xs text-[11px] leading-tight font-bold text-center flex items-center justify-center break-keep ${chest.role === 'M' ? 'text-red-600' : (treasureColorMap[chest.treasure] || { text: 'text-emerald-700' }).text}`;
+                    const actionWrap = document.createElement('div'); actionWrap.className = "mt-2 w-full h-9 flex items-center justify-center";
                     if (chest.isOpen) {
-                        // 랜덤 미믹 모드에서도 개봉한 진짜 상자의 실제 구성품은 즉시 공개합니다.
+                        // 개봉 후에는 기존처럼 실제 결과를 표시합니다.
+                        const resultBadge = document.createElement('div');
+                        resultBadge.className = `w-full min-h-7 px-2 py-1 rounded-lg bg-white shadow-xs text-[11px] leading-tight font-bold text-center flex items-center justify-center break-keep ${chest.role === 'M' ? 'text-red-600' : (treasureColorMap[chest.treasure] || { text: 'text-emerald-700' }).text}`;
                         resultBadge.innerText = chest.role === 'M' ? '미믹!' : chest.treasure;
                         actionWrap.appendChild(resultBadge);
                     } else {
-                        resultBadge.style.visibility = "hidden";
-                        resultBadge.innerText = "구성품 자리";
-                        actionWrap.appendChild(resultBadge);
+                        // 개봉 전에는 상자 아래 고정된 빈 네모 안에 마킹과 메모를 표시합니다.
+                        const markBadge = document.createElement('div');
+                        markBadge.className = "w-9 h-8 rounded-md border-2 border-slate-300 bg-white shadow-sm flex items-center justify-center gap-0.5 text-xs font-extrabold";
+                        const markStyles = {
+                            O: "text-emerald-600 border-emerald-400",
+                            X: "text-red-600 border-red-400",
+                            "?": "text-amber-500 border-amber-400"
+                        };
+                        if (chest.mark) {
+                            markBadge.className += " " + markStyles[chest.mark];
+                            markBadge.innerText = chest.mark;
+                        } else if (chest.memo && chest.memo.length) {
+                            markBadge.className += " text-slate-600 border-slate-400";
+                            markBadge.innerText = [...chest.memo].sort((a,b) => a-b).join("");
+                        } else {
+                            markBadge.innerHTML = "&nbsp;";
+                        }
+                        actionWrap.appendChild(markBadge);
                     }
                     chestWrap.appendChild(actionWrap); chestWrap.style.gridColumnStart = String(layout.honeycomb ? layout.pos[idx][1] * 2 + 1 : layout.pos[idx][1] + 1); chestWrap.style.gridColumnEnd = layout.honeycomb ? 'span 2' : 'span 1'; rowContainer.appendChild(chestWrap);
                 }
