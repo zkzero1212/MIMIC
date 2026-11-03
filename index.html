@@ -137,7 +137,7 @@
         <!-- Header -->
         <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
-                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v1.2</span>
+                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v1.3</span>
             </h1>
             <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
@@ -976,8 +976,26 @@
             if (isRandomMode) {
                 const maxMimics = Math.max(1, Math.floor((num - 1) / 2));
                 const countWeight = 10;
-                const addRandomCount = (truth, text, data) =>
+                const colorTypeCount = presentColors.length;
+                const randomCountPredicateKeys = new Set();
+                const addRandomCount = (truth, text, data) => {
+                    // 1..maxMimics 범위에서 동일한 진위 패턴을 갖는 발언은 한 번만 허용합니다.
+                    const trueCounts = [];
+                    for (let count = 1; count <= maxMimics; count++) {
+                        const result = data.kind === 'count'
+                            ? evaluateOp(count, data.op, data.count)
+                            : data.kind === 'parity'
+                                ? count % 2 === data.parity
+                                : evaluateOp(colorTypeCount, data.op, count);
+                        if (result) trueCounts.push(count);
+                    }
+                    // 항상 참/거짓인 발언은 힌트 가치가 없으므로 제외합니다.
+                    if (trueCounts.length === 0 || trueCounts.length === maxMimics) return;
+                    const signature = trueCounts.join(',');
+                    if (randomCountPredicateKeys.has(signature)) return;
+                    randomCountPredicateKeys.add(signature);
                     addStmt(truth, 'RANDOM_MIMIC_COUNT', text, data, countWeight, ['random_mimic_count']);
+                };
 
                 // 동일한 수학 조건은 후보에 한 번만 등록하고, 표현만 무작위로 고릅니다.
                 for (let n = 1; n <= maxMimics; n++) {
@@ -1007,7 +1025,6 @@
                 addRandomCount(!isEven, '이 맵 전체의 미믹 수는 홀수야.', { kind: 'parity', parity: 1 });
 
                 // 색상 종류 수와 전체 미믹 수의 직접 비교도 같은 카테고리로 취급합니다.
-                const colorTypeCount = presentColors.length;
                 addRandomCount(colorTypeCount === totalM, '이 맵의 색상 종류 수와 미믹 수는 같아.', { kind: 'color_compare', op: '==', colorCount: colorTypeCount });
                 addRandomCount(colorTypeCount >= totalM, '이 맵의 색상 종류 수는 미믹 수 이상이야.', { kind: 'color_compare', op: '>=', colorCount: colorTypeCount });
                 addRandomCount(colorTypeCount <= totalM, '이 맵의 색상 종류 수는 미믹 수 이하여.', { kind: 'color_compare', op: '<=', colorCount: colorTypeCount });
