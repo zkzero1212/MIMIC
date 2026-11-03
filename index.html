@@ -137,7 +137,7 @@
         <!-- Header -->
         <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
-                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v1.0</span>
+                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">v1.1</span>
             </h1>
             <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
@@ -925,7 +925,7 @@
 
             const addStmt = (assumesTruth, type, text, data = {}, weight = 10, tags = []) => {
                 let certaintyIndices = []; let countGroup = null; let countOp = null; let countValue = null;
-                if (type === 'GLOBAL_M_COUNT') { countGroup = Array.from({ length: num }, (_, i) => i); countOp = data.op; countValue = data.count; }
+                if (type === 'RANDOM_MIMIC_COUNT' && data.kind === 'count') { countGroup = Array.from({ length: num }, (_, i) => i); countOp = data.op; countValue = data.count; }
                 else if (type === 'COLOR_M') { countGroup = chestColors.map((v, i) => v === data.color ? i : -1).filter(i => i >= 0); countOp = data.op; countValue = data.count; }
                 else if (type === 'GROUP_M_COUNT') { countGroup = [...(data.group || [])]; countOp = data.op; countValue = data.count; }
                 else if (type === 'GLOBAL_M_EXIST') { countGroup = Array.from({ length: num }, (_, i) => i); countOp = data.hasMimic ? '>' : '=='; countValue = 0; }
@@ -948,8 +948,7 @@
                 const publicMaxMimics = isRandomMode ? Math.max(1, Math.floor((num - 1) / 2)) : totalM;
                 const boundedMax = Math.min(maxCount, publicMaxMimics);
                 const variants = [];
-                // 전체 미믹 수 발언은 랜덤 모드에서만 생성하며, 0마리 발언은 현재 제외합니다.
-                for (let n = type === 'GLOBAL_M_COUNT' ? 1 : 0; n <= boundedMax; n++) variants.push({
+                for (let n = 0; n <= boundedMax; n++) variants.push({
                     truth: actualCount === n,
                     text: n === 0 ? `${prefixText} 미믹이 없어.` : `${prefixText} 미믹은 정확히 ${n}마리야.`,
                     data: { op: '==', count: n },
@@ -976,11 +975,31 @@
             };
 
             if (isRandomMode) {
-                let maxMimics = Math.max(1, Math.floor((num - 1) / 2));
-                addCountStmts(totalM, maxMimics, 'GLOBAL_M_COUNT', '이 맵 전체에는', {}, 12, ['global_count']);
-                const isEven = (totalM % 2 === 0);
-                addStmt(isEven, 'GLOBAL_M_PARITY', `이 맵 전체의 미믹 개수는 짝수(0 포함)야.`, { parity: 0 }, 10, ['global_count']);
-                addStmt(!isEven, 'GLOBAL_M_PARITY', `이 맵 전체의 미믹 개수는 홀수야.`, { parity: 1 }, 10, ['global_count']);
+                const maxMimics = Math.max(1, Math.floor((num - 1) / 2));
+                const countWeight = 10;
+                const addRandomCount = (truth, text, data) =>
+                    addStmt(truth, 'RANDOM_MIMIC_COUNT', text, data, countWeight, ['random_mimic_count']);
+
+                // 전체 미믹 수: 0마리 발언은 아직 지원하지 않고 1마리 이상만 생성합니다.
+                for (let n = 1; n <= maxMimics; n++) {
+                    addRandomCount(totalM === n, `이 맵 전체의 미믹은 ${n}마리야.`, { kind: 'count', op: '==', count: n });
+                    addRandomCount(totalM === n, `이 맵 전체의 미믹 수는 정확히 ${n}마리야.`, { kind: 'count', op: '==', count: n });
+                    addRandomCount(totalM >= n, `이 맵 전체의 미믹 수는 ${n}마리 이상이야.`, { kind: 'count', op: '>=', count: n });
+                    addRandomCount(totalM < n, `이 맵 전체의 미믹 수는 ${n}마리 미만이야.`, { kind: 'count', op: '<', count: n });
+                    if (n < maxMimics) {
+                        addRandomCount(totalM <= n, `이 맵 전체의 미믹 수는 ${n}마리 이하여.`, { kind: 'count', op: '<=', count: n });
+                        addRandomCount(totalM > n, `이 맵 전체의 미믹 수는 ${n}마리 초과야.`, { kind: 'count', op: '>', count: n });
+                    }
+                }
+                const isEven = totalM % 2 === 0;
+                addRandomCount(isEven, '이 맵 전체의 미믹 수는 짝수야.', { kind: 'parity', parity: 0 });
+                addRandomCount(!isEven, '이 맵 전체의 미믹 수는 홀수야.', { kind: 'parity', parity: 1 });
+
+                // 색상 종류 수와 전체 미믹 수의 직접 비교도 같은 카테고리로 취급합니다.
+                const colorTypeCount = presentColors.length;
+                addRandomCount(colorTypeCount === totalM, '이 맵의 색상 종류 수와 미믹 수는 같아.', { kind: 'color_compare', op: '==', colorCount: colorTypeCount });
+                addRandomCount(colorTypeCount >= totalM, '이 맵의 색상 종류 수는 미믹 수 이상이야.', { kind: 'color_compare', op: '>=', colorCount: colorTypeCount });
+                addRandomCount(colorTypeCount <= totalM, '이 맵의 색상 종류 수는 미믹 수 이하여.', { kind: 'color_compare', op: '<=', colorCount: colorTypeCount });
             }
 
             const actualAdj = checkAdjacency(roles, layout);
@@ -1149,8 +1168,11 @@
             for (let i = 0; i < num; i++) {
                 const stmt = statements[i]; const assumesTruth = (combo[i] === 'T'); let isTrue = false;
                 switch(stmt.type) {
-                    case 'GLOBAL_M_COUNT': isTrue = evaluateOp(combo.filter(r => r === 'M').length, stmt.op, stmt.count); break;
-                    case 'GLOBAL_M_PARITY': isTrue = (combo.filter(r => r === 'M').length % 2 === stmt.parity); break;
+                    case 'RANDOM_MIMIC_COUNT':
+                        if (stmt.kind === 'count') isTrue = evaluateOp(combo.filter(r => r === 'M').length, stmt.op, stmt.count);
+                        else if (stmt.kind === 'parity') isTrue = (combo.filter(r => r === 'M').length % 2 === stmt.parity);
+                        else if (stmt.kind === 'color_compare') isTrue = evaluateOp(presentColors.length, stmt.op, combo.filter(r => r === 'M').length);
+                        break;
                     case 'COLOR_M': case 'GROUP_M_COUNT': let gCount = (stmt.type === 'COLOR_M') ? colorCounts[stmt.color].M : stmt.group.filter(idx => combo[idx] === 'M').length; isTrue = evaluateOp(gCount, stmt.op, stmt.count); break;
                     case 'COLOR_PARITY': isTrue = (colorCounts[stmt.color].M % 2 === stmt.parity); break;
                     case 'COLOR_CMP': isTrue = evaluateOp(colorCounts[stmt.c1].M, stmt.op, colorCounts[stmt.c2].M); break;
@@ -1183,6 +1205,7 @@
             let weightedStmts = statements.map(stmt => {
                 let w = stmt.weightBase || 10;
                 const certainty = stmt.certaintyIndices || [];
+                if (stmt.type === 'RANDOM_MIMIC_COUNT') w *= 0.5;
                 if (stmt.type === 'ITEM_GROUP_EXIST') {
                     const confirmedOverlap = (stmt.group || []).filter(idx => confirmedIndices.has(idx)).length;
                     if (confirmedOverlap > 0) w *= Math.min(2.4, 1.8 + (confirmedOverlap - 1) * 0.2);
@@ -1201,6 +1224,14 @@
                 
                 totalWeight += w; return { stmt, weight: w };
             });
+            const randomCountWeight = weightedStmts.filter(ws => ws.stmt.type === 'RANDOM_MIMIC_COUNT').reduce((sum, ws) => sum + ws.weight, 0);
+            const nonRandomCountWeight = weightedStmts.filter(ws => ws.stmt.type !== 'RANDOM_MIMIC_COUNT' && ws.stmt.type !== 'ITEM_GROUP_EXIST').reduce((sum, ws) => sum + ws.weight, 0);
+            const randomCountWeightCap = nonRandomCountWeight * 0.5;
+            if (randomCountWeight > randomCountWeightCap && randomCountWeight > 0) {
+                const scale = randomCountWeightCap / randomCountWeight;
+                weightedStmts.forEach(ws => { if (ws.stmt.type === 'RANDOM_MIMIC_COUNT') ws.weight *= scale; });
+                totalWeight = weightedStmts.reduce((sum, ws) => sum + ws.weight, 0);
+            }
             const itemWeight = weightedStmts.filter(ws => ws.stmt.type === 'ITEM_GROUP_EXIST').reduce((sum, ws) => sum + ws.weight, 0);
             const otherWeight = weightedStmts.filter(ws => ws.stmt.type !== 'ITEM_GROUP_EXIST').reduce((sum, ws) => sum + ws.weight, 0);
             const itemWeightCap = otherWeight * 0.05;
