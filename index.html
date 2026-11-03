@@ -137,7 +137,7 @@
         <!-- Header -->
         <header class="text-center mb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-1 drop-shadow-sm">
-                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">0.25</span>
+                미믹 로직: 등반 모드 <span id="game-version" class="inline-block align-middle ml-1 text-xs md:text-sm font-bold text-slate-400 tracking-normal">0.26</span>
             </h1>
             <p class="text-slate-500 text-xs md:text-sm">끝없이 높아지는 탑을 오르며 모든 진짜 보물을 찾으세요!</p>
         </header>
@@ -716,7 +716,8 @@
             const baseChestCount = currentFloor <= 3 ? [4, 5, 6][currentFloor - 1] : 6;
             let calcChests = baseChestCount +
                 permCurses.addChests + (currentTempCurses.addChests || 0);
-            let calcMimics = baseMimics +
+            // 1~3층은 기본 미믹 1마리, 4층부터는 기본 미믹 2마리입니다.
+            let calcMimics = (currentFloor <= 3 ? 1 : baseMimics) +
                 permCurses.addMimics + (currentTempCurses.addMimics || 0);
             
             let isRandom = (permCurses.random || currentTempCurses.random || isBoss) && !tempBuffs.preventRandom;
